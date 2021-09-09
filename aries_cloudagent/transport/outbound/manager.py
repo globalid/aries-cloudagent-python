@@ -446,8 +446,9 @@ class OutboundTransportManager:
 
     async def perform_encode(self, queued: QueuedOutboundMessage):
         """Perform message encoding."""
-        transport = self.get_transport_instance(queued.transport_id)
-        wire_format = transport.wire_format or self.context.inject(BaseWireFormat)
+        #transport = self.get_transport_instance(queued.transport_id)
+        #wire_format = transport.wire_format or self.context.inject(BaseWireFormat)
+        wire_format = self.context.inject(BaseWireFormat)
         session = await queued.profile.session()
         queued.payload = await wire_format.encode_message(
             session,
