@@ -531,9 +531,11 @@ class Conductor:
             targets = (
                 [outbound.target] if outbound.target else (outbound.target_list or [])
             )
+            queue = await self.outbound_transport_manager.encode_message_external_queue(profile, outbound)
+
             for target in targets:
                 await self.outbound_queue.enqueue_message(
-                    outbound.payload, target.endpoint
+                    queue.payload, target.endpoint
                 )
 
             return OutboundSendStatus.SENT_TO_EXTERNAL_QUEUE

@@ -234,6 +234,37 @@ class OutboundTransportManager:
         """Get an instance of a running transport by ID."""
         return self.running_transports[transport_id]
 
+
+    async def encode_message_external_queue(self, profile: Profile, outbound: OutboundMessage):
+        """
+        Add an outbound message to the queue.
+
+        Args:
+            profile: The active profile for the request
+            outbound: The outbound message to deliver
+        """
+        targets = [outbound.target] if outbound.target else (outbound.target_list or [])
+        transport_id = None
+        for target in targets:
+            endpoint = target.endpoint
+            try:
+                transport_id = self.get_running_transport_for_endpoint(endpoint)
+            except OutboundDeliveryError:
+                pass
+            if transport_id:
+                break
+        if not transport_id:
+            raise OutboundDeliveryError("No supported transport for outbound message")
+
+        queued = QueuedOutboundMessage(profile, outbound, target, None)
+
+        if queued.message and queued.message.enc_payload:
+            queued.payload = queued.message.enc_payload
+        else:
+            await self.perform_encode(queued)
+
+        return queued
+
     def enqueue_message(self, profile: Profile, outbound: OutboundMessage):
         """
         Add an outbound message to the queue.
