@@ -247,14 +247,6 @@ class OutboundTransportManager:
         transport_id = None
         for target in targets:
             endpoint = target.endpoint
-            try:
-                transport_id = self.get_running_transport_for_endpoint(endpoint)
-            except OutboundDeliveryError:
-                pass
-            if transport_id:
-                break
-        if not transport_id:
-            raise OutboundDeliveryError("No supported transport for outbound message")
 
         queued = QueuedOutboundMessage(profile, outbound, target, None)
 
