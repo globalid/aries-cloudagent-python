@@ -402,7 +402,6 @@ async def wallet_create_token(request: web.BaseRequest):
         body = await request.json()
         wallet_key = body.get("wallet_key")
 
-    
     try:
         async with context.session() as session:
             multitenant_mgr = session.inject(BaseMultitenantManager)
