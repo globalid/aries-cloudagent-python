@@ -1149,6 +1149,12 @@ class ConnectionManager(BaseConnectionManager):
 
                     await entry.set_result([row.serialize() for row in targets], 3600)
         else:
+            if not connection:
+                async with self.profile.session() as session:
+                    connection = await ConnRecord.retrieve_by_id(
+                        session, connection_id
+                    )
+                    
             targets = await self.fetch_connection_targets(connection)
         return targets
 
