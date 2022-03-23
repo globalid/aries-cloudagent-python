@@ -315,10 +315,18 @@ class V20PresManager:
                     session, {"thread_id": thread_id}, conn_id_filter
                 )
             except StorageNotFoundError:
-                # Proof req not bound to any connection: requests_attach in OOB msg
-                pres_ex_record = await V20PresExRecord.retrieve_by_tag_filter(
-                    session, {"thread_id": thread_id}, None
-                )
+                try:
+                    pres_ex_record = await V20PresExRecord.retrieve_by_tag_filter(
+                        session, {"~thread_id": thread_id}, None
+                    )
+                except StorageNotFoundError:
+                    # Proof req not bound to any connection: requests_attach in OOB msg
+                    pres_ex_record = await V20PresExRecord.retrieve_by_tag_filter(
+                        session, {}, None
+                    )
+                    pres_ex_record = await V20PresExRecord.query(
+                        session, {"thread_id": thread_id}
+                    )
 
         input_formats = message.formats
 
