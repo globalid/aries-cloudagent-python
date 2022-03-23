@@ -309,24 +309,20 @@ class V20PresManager:
             if conn_record is None
             else {"connection_id": conn_record.connection_id}
         )
+
+        LOGGER.warning('askar profile name')
+        LOGGER.warning(self._profile.context.settings.get("wallet.askar_profile"))
+
         async with self._profile.session() as session:
             try:
                 pres_ex_record = await V20PresExRecord.retrieve_by_tag_filter(
                     session, {"thread_id": thread_id}, conn_id_filter
                 )
             except StorageNotFoundError:
-                try:
-                    pres_ex_record = await V20PresExRecord.retrieve_by_tag_filter(
-                        session, {"~thread_id": thread_id}, None
-                    )
-                except StorageNotFoundError:
-                    # Proof req not bound to any connection: requests_attach in OOB msg
-                    pres_ex_record = await V20PresExRecord.retrieve_by_tag_filter(
-                        session, {}, None
-                    )
-                    pres_ex_record = await V20PresExRecord.query(
-                        session, {"thread_id": thread_id}
-                    )
+                pres_ex_record = await V20PresExRecord.retrieve_by_tag_filter(
+                    session=session, tag_filter={"thread_id": thread_id}
+                )
+
 
         input_formats = message.formats
 
