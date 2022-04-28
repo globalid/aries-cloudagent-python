@@ -201,7 +201,7 @@ class AskarWallet(BaseWallet):
                 )
             except AskarError as err:
                 if err.code == AskarErrorCode.DUPLICATE:
-                    # update metadata?
+                    LOGGER.warn("DEBUG: err.code == AskarErrorCode.DUPLICATE")
                     pass
                 else:
                     raise WalletError("Error inserting key") from err
