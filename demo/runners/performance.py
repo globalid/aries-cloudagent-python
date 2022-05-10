@@ -73,6 +73,11 @@ class BaseAgent(DemoAgent):
                 self.log("Connected")
                 self._connection_ready.set_result(True)
 
+    async def handle_issue_credential(self, payload):
+        cred_ex_id = payload["credential_exchange_id"]
+        self.credential_state[cred_ex_id] = payload["state"]
+        self.credential_event.set()
+
     async def handle_issue_credential_v2_0(self, payload):
         cred_ex_id = payload["cred_ex_id"]
         self.credential_state[cred_ex_id] = payload["state"]
@@ -103,7 +108,7 @@ class BaseAgent(DemoAgent):
             pending = 0
             total = len(self.credential_state)
             for result in self.credential_state.values():
-                if result != "done":
+                if result != "done" and result != "credential_acked":
                     pending += 1
             if self.credential_event.is_set():
                 continue
@@ -261,17 +266,25 @@ async def main(
     show_timing: bool = False,
     multitenant: bool = False,
     mediation: bool = False,
+    multi_ledger: bool = False,
     use_did_exchange: bool = False,
     revocation: bool = False,
     tails_server_base_url: str = None,
     issue_count: int = 300,
+    batch_size: int = 30,
     wallet_type: str = None,
+    arg_file: str = None,
 ):
 
-    genesis = await default_genesis_txns()
-    if not genesis:
-        print("Error retrieving ledger genesis transactions")
-        sys.exit(1)
+    if multi_ledger:
+        genesis = None
+        multi_ledger_config_path = "./demo/multi_ledger_config.yml"
+    else:
+        genesis = await default_genesis_txns()
+        multi_ledger_config_path = None
+        if not genesis:
+            print("Error retrieving ledger genesis transactions")
+            sys.exit(1)
 
     alice = None
     faber = None
@@ -284,21 +297,25 @@ async def main(
         alice = AliceAgent(
             start_port,
             genesis_data=genesis,
+            genesis_txn_list=multi_ledger_config_path,
             timing=show_timing,
             multitenant=multitenant,
             mediation=mediation,
             wallet_type=wallet_type,
+            arg_file=arg_file,
         )
         await alice.listen_webhooks(start_port + 2)
 
         faber = FaberAgent(
             start_port + 3,
             genesis_data=genesis,
+            genesis_txn_list=multi_ledger_config_path,
             timing=show_timing,
             tails_server_base_url=tails_server_base_url,
             multitenant=multitenant,
             mediation=mediation,
             wallet_type=wallet_type,
+            arg_file=arg_file,
         )
         await faber.listen_webhooks(start_port + 5)
         await faber.register_did()
@@ -309,12 +326,12 @@ async def main(
 
             if mediation:
                 alice_mediator_agent = await start_mediator_agent(
-                    start_port + 8, genesis
+                    start_port + 8, genesis, multi_ledger_config_path
                 )
                 if not alice_mediator_agent:
                     raise Exception("Mediator agent returns None :-(")
                 faber_mediator_agent = await start_mediator_agent(
-                    start_port + 11, genesis
+                    start_port + 11, genesis, multi_ledger_config_path
                 )
                 if not faber_mediator_agent:
                     raise Exception("Mediator agent returns None :-(")
@@ -362,8 +379,6 @@ async def main(
             if mediation:
                 await alice_mediator_agent.reset_timing()
                 await faber_mediator_agent.reset_timing()
-
-        batch_size = 100
 
         semaphore = asyncio.Semaphore(threads)
 
@@ -584,6 +599,13 @@ if __name__ == "__main__":
         help="Set the number of credentials to issue",
     )
     parser.add_argument(
+        "-b",
+        "--batch",
+        type=int,
+        default=100,
+        help="Set the batch size of credentials to issue",
+    )
+    parser.add_argument(
         "-p",
         "--port",
         type=int,
@@ -602,6 +624,14 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--mediation", action="store_true", help="Enable mediation functionality"
+    )
+    parser.add_argument(
+        "--multi-ledger",
+        action="store_true",
+        help=(
+            "Enable multiple ledger mode, config file can be found "
+            "here: ./demo/multi_ledger_config.yml"
+        ),
     )
     parser.add_argument(
         "--did-exchange",
@@ -639,6 +669,12 @@ if __name__ == "__main__":
         metavar="<wallet-type>",
         help="Set the agent wallet type",
     )
+    parser.add_argument(
+        "--arg-file",
+        type=str,
+        metavar="<arg-file>",
+        help="Specify a file containing additional aca-py parameters",
+    )
     args = parser.parse_args()
 
     if args.did_exchange and args.mediation:
@@ -669,11 +705,14 @@ if __name__ == "__main__":
                 args.timing,
                 args.multitenant,
                 args.mediation,
+                args.multi_ledger,
                 args.did_exchange,
                 args.revocation,
                 tails_server_base_url,
                 args.count,
+                args.batch,
                 args.wallet_type,
+                args.arg_file,
             )
         )
     except KeyboardInterrupt:

@@ -151,14 +151,10 @@ class AdminResponder(BaseResponder):
 async def ready_middleware(request: web.BaseRequest, handler: Coroutine):
     """Only continue if application is ready to take work."""
 
-    if (
-        str(request.rel_url).rstrip("/")
-        in (
-            "/status/live",
-            "/status/ready",
-        )
-        or request.app._state.get("ready")
-    ):
+    if str(request.rel_url).rstrip("/") in (
+        "/status/live",
+        "/status/ready",
+    ) or request.app._state.get("ready"):
         try:
             return await handler(request)
         except (LedgerConfigError, LedgerTransactionError) as e:
@@ -267,18 +263,14 @@ class AdminServer(BaseAdminServer):
         assert self.admin_insecure_mode ^ bool(self.admin_api_key)
 
         def is_unprotected_path(path: str):
-            return (
-                path
-                in [
-                    "/api/doc",
-                    "/api/docs/swagger.json",
-                    "/favicon.ico",
-                    "/ws",  # ws handler checks authentication
-                    "/status/live",
-                    "/status/ready",
-                ]
-                or path.startswith("/static/swagger/")
-            )
+            return path in [
+                "/api/doc",
+                "/api/docs/swagger.json",
+                "/favicon.ico",
+                "/ws",  # ws handler checks authentication
+                "/status/live",
+                "/status/ready",
+            ] or path.startswith("/static/swagger/")
 
         # If admin_api_key is None, then admin_insecure_mode must be set so
         # we can safely enable the admin server with no security
@@ -289,7 +281,15 @@ class AdminServer(BaseAdminServer):
                 header_admin_api_key = request.headers.get("x-api-key")
                 valid_key = const_compare(self.admin_api_key, header_admin_api_key)
 
-                if valid_key or is_unprotected_path(request.path):
+                # We have to allow OPTIONS method access to paths without a key since
+                # browsers performing CORS requests will never include the original
+                # x-api-key header from the method that triggered the preflight
+                # OPTIONS check.
+                if (
+                    valid_key
+                    or is_unprotected_path(request.path)
+                    or (request.method == "OPTIONS")
+                ):
                     return await handler(request)
                 else:
                     raise web.HTTPUnauthorized()

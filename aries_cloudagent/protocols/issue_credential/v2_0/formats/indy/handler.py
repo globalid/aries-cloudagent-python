@@ -14,6 +14,11 @@ from ......indy.models.cred import IndyCredentialSchema
 from ......indy.models.cred_request import IndyCredRequestSchema
 from ......indy.models.cred_abstract import IndyCredAbstractSchema
 from ......ledger.base import BaseLedger
+from ......ledger.multiple_ledger.ledger_requests_executor import (
+    GET_CRED_DEF,
+    GET_SCHEMA,
+    IndyLedgerRequestsExecutor,
+)
 from ......messaging.credential_definitions.util import (
     CRED_DEF_SENT_RECORD_TYPE,
     CredDefQueryStringSchema,
@@ -92,25 +97,26 @@ class IndyCredFormatHandler(V20CredFormatHandler):
                 session, cred_ex_id
             )
 
-            if len(records) > 1:
-                LOGGER.warning(
-                    "Cred ex id %s has %d %s detail records: should be 1",
-                    cred_ex_id,
-                    len(records),
-                    IndyCredFormatHandler.format.api,
-                )
-            return records[0] if records else None
+        if len(records) > 1:
+            LOGGER.warning(
+                "Cred ex id %s has %d %s detail records: should be 1",
+                cred_ex_id,
+                len(records),
+                IndyCredFormatHandler.format.api,
+            )
+        return records[0] if records else None
 
     async def _check_uniqueness(self, cred_ex_id: str):
         """Raise exception on evidence that cred ex already has cred issued to it."""
         async with self.profile.session() as session:
-            if await IndyCredFormatHandler.format.detail.query_by_cred_ex_id(
+            exist = await IndyCredFormatHandler.format.detail.query_by_cred_ex_id(
                 session, cred_ex_id
-            ):
-                raise V20CredFormatError(
-                    f"{IndyCredFormatHandler.format.api} detail record already "
-                    f"exists for cred ex id {cred_ex_id}"
-                )
+            )
+        if exist:
+            raise V20CredFormatError(
+                f"{IndyCredFormatHandler.format.api} detail record already "
+                f"exists for cred ex id {cred_ex_id}"
+            )
 
     def get_format_identifier(self, message_type: str) -> str:
         """Get attachment format identifier for format and message combination.
@@ -196,6 +202,13 @@ class IndyCredFormatHandler(V20CredFormatHandler):
             offer_json = await issuer.create_credential_offer(cred_def_id)
             return json.loads(offer_json)
 
+        ledger_exec_inst = self._profile.inject(IndyLedgerRequestsExecutor)
+        ledger = (
+            await ledger_exec_inst.get_ledger_for_identifier(
+                cred_def_id,
+                txn_record_type=GET_CRED_DEF,
+            )
+        )[1]
         async with ledger:
             schema_id = await ledger.credential_definition_id2schema_id(cred_def_id)
             schema = await ledger.get_schema(schema_id)
@@ -250,7 +263,13 @@ class IndyCredFormatHandler(V20CredFormatHandler):
         cred_def_id = cred_offer["cred_def_id"]
 
         async def _create():
-            ledger = self.profile.inject(BaseLedger)
+            ledger_exec_inst = self._profile.inject(IndyLedgerRequestsExecutor)
+            ledger = (
+                await ledger_exec_inst.get_ledger_for_identifier(
+                    cred_def_id,
+                    txn_record_type=GET_CRED_DEF,
+                )
+            )[1]
             async with ledger:
                 cred_def = await ledger.get_credential_definition(cred_def_id)
 
@@ -312,8 +331,13 @@ class IndyCredFormatHandler(V20CredFormatHandler):
 
         rev_reg_id = None
         rev_reg = None
-
-        ledger = self.profile.inject(BaseLedger)
+        ledger_exec_inst = self._profile.inject(IndyLedgerRequestsExecutor)
+        ledger = (
+            await ledger_exec_inst.get_ledger_for_identifier(
+                schema_id,
+                txn_record_type=GET_SCHEMA,
+            )
+        )[1]
         async with ledger:
             schema = await ledger.get_schema(schema_id)
             cred_def = await ledger.get_credential_definition(cred_def_id)
@@ -451,7 +475,13 @@ class IndyCredFormatHandler(V20CredFormatHandler):
         cred = cred_ex_record.cred_issue.attachment(IndyCredFormatHandler.format)
 
         rev_reg_def = None
-        ledger = self.profile.inject(BaseLedger)
+        ledger_exec_inst = self._profile.inject(IndyLedgerRequestsExecutor)
+        ledger = (
+            await ledger_exec_inst.get_ledger_for_identifier(
+                cred["cred_def_id"],
+                txn_record_type=GET_CRED_DEF,
+            )
+        )[1]
         async with ledger:
             cred_def = await ledger.get_credential_definition(cred["cred_def_id"])
             if cred.get("rev_reg_id"):

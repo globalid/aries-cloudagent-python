@@ -27,7 +27,7 @@ class CredentialIssueHandler(BaseHandler):
 
         """
         r_time = get_timer()
-
+        profile = context.profile
         self._logger.debug("CredentialHandler called with context %s", context)
         assert isinstance(context.message, CredentialIssue)
         self._logger.info(
@@ -37,7 +37,7 @@ class CredentialIssueHandler(BaseHandler):
         if not context.connection_ready:
             raise HandlerException("No connection established for credential issue")
 
-        credential_manager = CredentialManager(context.profile)
+        credential_manager = CredentialManager(profile)
         cred_ex_record = await credential_manager.receive_credential(
             context.message, context.connection_record.connection_id
         )  # mgr only finds, saves record: on exception, saving state null is hopeless
@@ -50,7 +50,7 @@ class CredentialIssueHandler(BaseHandler):
         )
 
         # Automatically move to next state if flag is set
-        if context.settings.get("debug.auto_store_credential"):
+        if cred_ex_record and context.settings.get("debug.auto_store_credential"):
             try:
                 cred_ex_record = await credential_manager.store_credential(
                     cred_ex_record
@@ -62,9 +62,9 @@ class CredentialIssueHandler(BaseHandler):
                 StorageError,
             ) as err:
                 # treat failure to store as mangled on receipt hence protocol error
-                self._logger.exception(err)
+                self._logger.exception("Error storing issued credential")
                 if cred_ex_record:
-                    async with context.session() as session:
+                    async with profile.session() as session:
                         await cred_ex_record.save_error_state(
                             session,
                             reason=err.roll_up,  # us: be specific
@@ -76,7 +76,7 @@ class CredentialIssueHandler(BaseHandler):
                         )
                     )
 
-            credential_ack_message = await credential_manager.send_credential_ack(
+            (_, credential_ack_message) = await credential_manager.send_credential_ack(
                 cred_ex_record
             )
 

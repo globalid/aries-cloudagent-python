@@ -22,6 +22,7 @@ There are several demos available for ACA-Py mostly (but not only) aimed at deve
   - [Revocation](#revocation)
   - [Mediation](#mediation)
   - [Multi-tenancy](#multi-tenancy)
+  - [Multi-ledger](#multi-ledger)
   - [DID Exchange](#did-exchange)
   - [Endorser](#endorser)
   - [Run Askar Backend](#run-askar-backend)
@@ -40,7 +41,7 @@ The Alice/Faber demo is the (in)famous first verifiable credentials demo. Alice,
 
 ### Running in a Browser
 
-In your browser, go to the docker playground service [Play with VON](http://play-with-von.vonx.io) (from the BC Gov). On the title screen, click "Start". On the next screen, click (in the left menu) "+Add a new instance".  That will start up a terminal in your browser. Run the following commands to start the Faber agent:
+In your browser, go to the docker playground service [Play with Docker](https://labs.play-with-docker.com/). On the title screen, click "Start". On the next screen, click (in the left menu) "+Add a new instance".  That will start up a terminal in your browser. Run the following commands to start the Faber agent:
 
 ```bash
 git clone https://github.com/hyperledger/aries-cloudagent-python
@@ -71,7 +72,7 @@ In the first terminal window, start `von-network` by following the [Running the 
 In the second terminal, change directory into `demo` directory of your clone of this repository. Start the `faber` agent by issuing the following command:
 
 ``` bash
-  ./run_demo faber 
+  ./run_demo faber
 ```
 
 In the third terminal, change directory into `demo` directory of your clone of this repository. Start the `alice` agent by issuing the following command:
@@ -80,7 +81,7 @@ In the third terminal, change directory into `demo` directory of your clone of t
   ./run_demo alice
 ```
 
-Jump to the [Follow the Script](#follow-the-script) section below for further instructions. 
+Jump to the [Follow the Script](#follow-the-script) section below for further instructions.
 
 ### Running Locally
 
@@ -229,7 +230,7 @@ When you revoke a credential you will need to provide those values:
 
 Enter revocation registry ID: WGmUNAdH2ZfeGvacFoMVVP:4:WGmUNAdH2ZfeGvacFoMVVP:3:CL:38:Faber.Agent.degree_schema:CL_ACCUM:15ca49ed-1250-4608-9e8f-c0d52d7260c3
 Enter credential revocation ID: 1
-Publish now? [Y/N]: y 
+Publish now? [Y/N]: y
 ```
 
 Note that you need to Publish the revocation information to the ledger.  Once you've revoked a credential any proof which uses this credential will fail to verify.
@@ -273,6 +274,16 @@ To enable support for multi-tenancy, run the `alice` or `faber` demo with the `-
 ```
 
 (This option can be used with both (or either) `alice` and/or `faber`.)
+
+### Multi-ledger
+
+To enable multiple ledger mode, run the `alice` or `faber` demo with the `--multi-ledger` option:
+
+```bash
+./run_demo faber --multi-ledger
+```
+
+The configuration file for setting up multiple ledgers (for the demo) can be found at `./demo/multiple_ledger_config.yml`.
 
 You will see an additional menu option to create new sub-wallets (or they can be considered to be "virtual agents").
 
@@ -384,6 +395,22 @@ To run the demo, make sure that you shut down any running Alice/Faber agents. Th
 The script starts both agents, runs the performance test, spits out performance results and shuts down the agents. Note that this is just one demonstration of how performance metrics tracking can be done with ACA-Py.
 
 A second version of the performance test can be run by adding the parameter `--routing` to the invocation above. The parameter triggers the example to run with Alice using a routing agent such that all messages pass through the routing agent between Alice and Faber. This is a good, simple example of how routing can be implemented with DIDComm agents.
+
+You can also run the demo against a postgres database using the following:
+
+```bash
+./run_demo performance --arg-file demo/postgres-indy-args.yml
+```
+
+(Obvs you need to be running a postgres database - the command to start postgres is in the yml file provided above.)
+
+You can tweak the number of credentials issued using the `--count` and `--batch` parameters, and you can run against an Askar database using the `--wallet-type askar` option.
+
+An example full set of options is:
+
+```bash
+./run_demo performance --arg-file demo/postgres-indy-args.yml -c 10000 -b 10 --wallet-type askar
+```
 
 ## Coding Challenge: Adding ACME
 
