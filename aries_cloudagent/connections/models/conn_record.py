@@ -285,8 +285,8 @@ class ConnRecord(BaseRecord):
             )
         }
 
-    @tracer.wrap()
     @classmethod
+    @tracer.wrap()
     async def retrieve_by_did(
         cls,
         session: ProfileSession,
@@ -314,8 +314,8 @@ class ConnRecord(BaseRecord):
 
         return await cls.retrieve_by_tag_filter(session, tag_filter, post_filter)
 
-    @tracer.wrap()
     @classmethod
+    @tracer.wrap()
     async def retrieve_by_invitation_key(
         cls, session: ProfileSession, invitation_key: str, their_role: str = None
     ) -> "ConnRecord":
@@ -334,8 +334,8 @@ class ConnRecord(BaseRecord):
 
         return await cls.retrieve_by_tag_filter(session, tag_filter, post_filter)
 
-    @tracer.wrap()
     @classmethod
+    @tracer.wrap()
     async def retrieve_by_invitation_msg_id(
         cls, session: ProfileSession, invitation_msg_id: str, their_role: str = None
     ) -> Optional["ConnRecord"]:
@@ -357,8 +357,8 @@ class ConnRecord(BaseRecord):
         except StorageNotFoundError:
             return None
 
-    @tracer.wrap()
     @classmethod
+    @tracer.wrap()
     async def find_existing_connection(
         cls, session: ProfileSession, their_public_did: str
     ) -> Optional["ConnRecord"]:
@@ -378,8 +378,8 @@ class ConnRecord(BaseRecord):
                 return conn_record
         return None
 
-    @tracer.wrap()
     @classmethod
+    @tracer.wrap()
     async def retrieve_by_request_id(
         cls, session: ProfileSession, request_id: str, their_role: str = None
     ) -> "ConnRecord":
@@ -394,8 +394,8 @@ class ConnRecord(BaseRecord):
             tag_filter["their_role"] = their_role
         return await cls.retrieve_by_tag_filter(session, tag_filter)
 
-    @tracer.wrap()
     @classmethod
+    @tracer.wrap()
     async def retrieve_by_alias(
         cls, session: ProfileSession, alias: str
     ) -> "ConnRecord":
