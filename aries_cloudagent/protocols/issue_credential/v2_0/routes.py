@@ -49,6 +49,8 @@ from .models.detail.indy import V20CredExRecordIndySchema
 from .formats.handler import V20CredFormatError
 from .formats.ld_proof.models.cred_detail import LDProofVCDetailSchema
 
+from ddtrace import tracer
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -1298,6 +1300,7 @@ async def credential_exchange_send_bound_request(request: web.BaseRequest):
 @match_info_schema(V20CredExIdMatchInfoSchema())
 @request_schema(V20CredIssueRequestSchema())
 @response_schema(V20CredExRecordDetailSchema(), 200, description="")
+@tracer.wrap()
 async def credential_exchange_issue(request: web.BaseRequest):
     """
     Request handler for sending credential.

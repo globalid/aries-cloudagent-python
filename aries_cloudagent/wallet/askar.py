@@ -36,6 +36,8 @@ from .error import WalletError, WalletDuplicateError, WalletNotFoundError
 from .key_type import KeyType
 from .util import b58_to_bytes, bytes_to_b58
 
+from ddtrace import tracer
+
 CATEGORY_DID = "did"
 CATEGORY_CONFIG = "config"
 RECORD_NAME_PUBLIC_DID = "default_public_did"
@@ -60,6 +62,7 @@ class AskarWallet(BaseWallet):
         """Accessor for Askar profile session instance."""
         return self._session
 
+    @tracer.wrap()
     async def create_signing_key(
         self, key_type: KeyType, seed: str = None, metadata: dict = None
     ) -> KeyInfo:
@@ -96,6 +99,7 @@ class AskarWallet(BaseWallet):
 
         return KeyInfo(verkey=verkey, metadata=metadata, key_type=key_type)
 
+    @tracer.wrap()
     async def get_signing_key(self, verkey: str) -> KeyInfo:
         """
         Fetch info for a signing keypair.
@@ -121,6 +125,7 @@ class AskarWallet(BaseWallet):
         # FIXME implement key types
         return KeyInfo(verkey=verkey, metadata=metadata, key_type=KeyType.ED25519)
 
+    @tracer.wrap()
     async def replace_signing_key_metadata(self, verkey: str, metadata: dict):
         """
         Replace the metadata associated with a signing keypair.
@@ -146,6 +151,7 @@ class AskarWallet(BaseWallet):
             verkey, metadata=json.dumps(metadata or {}), tags=key.tags
         )
 
+    @tracer.wrap()
     async def create_local_did(
         self,
         method: DIDMethod,
@@ -246,6 +252,7 @@ class AskarWallet(BaseWallet):
             did=did, verkey=verkey, metadata=metadata, method=method, key_type=key_type
         )
 
+    @tracer.wrap()
     async def get_local_dids(self) -> Sequence[DIDInfo]:
         """
         Get list of defined local DIDs.
@@ -260,6 +267,7 @@ class AskarWallet(BaseWallet):
             ret.append(_load_did_entry(item))
         return ret
 
+    @tracer.wrap()
     async def get_local_did(self, did: str) -> DIDInfo:
         """
         Find info for a local DID.
@@ -286,6 +294,7 @@ class AskarWallet(BaseWallet):
             raise WalletNotFoundError("Unknown DID: {}".format(did))
         return _load_did_entry(did)
 
+    @tracer.wrap()
     async def get_local_did_for_verkey(self, verkey: str) -> DIDInfo:
         """
         Resolve a local DID from a verkey.
@@ -311,6 +320,7 @@ class AskarWallet(BaseWallet):
             return _load_did_entry(dids[0])
         raise WalletNotFoundError("No DID defined for verkey: {}".format(verkey))
 
+    @tracer.wrap()
     async def replace_local_did_metadata(self, did: str, metadata: dict):
         """
         Replace metadata for a local DID.
@@ -334,6 +344,7 @@ class AskarWallet(BaseWallet):
         except AskarError as err:
             raise WalletError("Error updating DID metadata") from err
 
+    @tracer.wrap()
     async def get_public_did(self) -> DIDInfo:
         """
         Retrieve the public DID.
@@ -385,6 +396,7 @@ class AskarWallet(BaseWallet):
 
         return public_info
 
+    @tracer.wrap()
     async def set_public_did(self, did: Union[str, DIDInfo]) -> DIDInfo:
         """
         Assign the public DID.
@@ -440,6 +452,7 @@ class AskarWallet(BaseWallet):
 
         return public
 
+    @tracer.wrap()
     async def set_did_endpoint(
         self,
         did: str,
@@ -482,6 +495,7 @@ class AskarWallet(BaseWallet):
 
         await self.replace_local_did_metadata(did, metadata)
 
+    @tracer.wrap()
     async def rotate_did_keypair_start(self, did: str, next_seed: str = None) -> str:
         """
         Begin key rotation for DID that wallet owns: generate new keypair.
@@ -533,6 +547,7 @@ class AskarWallet(BaseWallet):
 
         return verkey
 
+    @tracer.wrap()
     async def rotate_did_keypair_apply(self, did: str) -> DIDInfo:
         """
         Apply temporary keypair as main for DID that wallet owns.
@@ -562,6 +577,7 @@ class AskarWallet(BaseWallet):
         except AskarError as err:
             raise WalletError("Error updating DID metadata") from err
 
+    @tracer.wrap()
     async def sign_message(
         self, message: Union[List[bytes], bytes], from_verkey: str
     ) -> bytes:
@@ -603,6 +619,7 @@ class AskarWallet(BaseWallet):
         except AskarError as err:
             raise WalletError("Exception when signing message") from err
 
+    @tracer.wrap()
     async def verify_message(
         self,
         message: Union[List[bytes], bytes],
@@ -653,6 +670,7 @@ class AskarWallet(BaseWallet):
             key_type=key_type,
         )
 
+    @tracer.wrap()
     async def pack_message(
         self, message: str, to_verkeys: Sequence[str], from_verkey: str = None
     ) -> bytes:
@@ -688,6 +706,7 @@ class AskarWallet(BaseWallet):
         except AskarError as err:
             raise WalletError("Exception when packing message") from err
 
+    @tracer.wrap()
     async def unpack_message(self, enc_message: bytes) -> Tuple[str, str, str]:
         """
         Unpack a message.

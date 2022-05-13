@@ -19,6 +19,8 @@ from .messages.cred_request import V20CredRequest
 from .messages.inner.cred_preview import V20CredPreview
 from .models.cred_ex_record import V20CredExRecord
 
+from ddtrace import tracer
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -49,6 +51,7 @@ class V20CredManager:
         """
         return self._profile
 
+    @tracer.wrap()
     async def prepare_send(
         self,
         connection_id: str,
@@ -85,6 +88,7 @@ class V20CredManager:
         )
         return (cred_ex_record, cred_offer)
 
+    @tracer.wrap()
     async def create_proposal(
         self,
         connection_id: str,
@@ -147,6 +151,7 @@ class V20CredManager:
             )
         return cred_ex_record
 
+    @tracer.wrap()
     async def receive_proposal(
         self,
         cred_proposal_message: V20CredProposal,
@@ -192,6 +197,7 @@ class V20CredManager:
 
         return cred_ex_record
 
+    @tracer.wrap()
     async def create_offer(
         self,
         cred_ex_record: V20CredExRecord,
@@ -261,6 +267,7 @@ class V20CredManager:
 
         return (cred_ex_record, cred_offer_message)
 
+    @tracer.wrap()
     async def receive_offer(
         self,
         cred_offer_message: V20CredOffer,
@@ -314,6 +321,7 @@ class V20CredManager:
 
         return cred_ex_record
 
+    @tracer.wrap()
     async def create_request(
         self, cred_ex_record: V20CredExRecord, holder_did: str, comment: str = None
     ) -> Tuple[V20CredExRecord, V20CredRequest]:
@@ -390,6 +398,7 @@ class V20CredManager:
 
         return (cred_ex_record, cred_request_message)
 
+    @tracer.wrap()
     async def receive_request(
         self, cred_request_message: V20CredRequest, connection_id: str
     ) -> V20CredExRecord:
@@ -449,7 +458,8 @@ class V20CredManager:
             await cred_ex_record.save(session, reason="receive v2.0 credential request")
 
         return cred_ex_record
-
+    
+    @tracer.wrap()
     async def issue_credential(
         self,
         cred_ex_record: V20CredExRecord,
@@ -525,6 +535,7 @@ class V20CredManager:
 
         return (cred_ex_record, cred_issue_message)
 
+    @tracer.wrap()
     async def receive_credential(
         self, cred_issue_message: V20CredIssue, connection_id: str
     ) -> V20CredExRecord:
@@ -585,6 +596,7 @@ class V20CredManager:
             await cred_ex_record.save(session, reason="receive v2.0 credential issue")
         return cred_ex_record
 
+    @tracer.wrap()
     async def store_credential(
         self, cred_ex_record: V20CredExRecord, cred_id: str = None
     ) -> Tuple[V20CredExRecord, V20CredAck]:
@@ -619,6 +631,7 @@ class V20CredManager:
 
         return cred_ex_record
 
+    @tracer.wrap()
     async def send_cred_ack(
         self,
         cred_ex_record: V20CredExRecord,
@@ -668,6 +681,7 @@ class V20CredManager:
 
         return cred_ex_record, cred_ack_message
 
+    @tracer.wrap()
     async def receive_credential_ack(
         self, cred_ack_message: V20CredAck, connection_id: str
     ) -> V20CredExRecord:
@@ -700,6 +714,7 @@ class V20CredManager:
 
         return cred_ex_record
 
+    @tracer.wrap()
     async def delete_cred_ex_record(self, cred_ex_id: str) -> None:
         """Delete credential exchange record and associated detail records."""
 
