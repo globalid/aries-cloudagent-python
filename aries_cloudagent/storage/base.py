@@ -6,6 +6,7 @@ from typing import Mapping, Sequence
 from .error import StorageError, StorageDuplicateError, StorageNotFoundError
 from .record import StorageRecord
 
+from ddtrace import tracer
 
 DEFAULT_PAGE_SIZE = 100
 
@@ -74,6 +75,7 @@ class BaseStorage(ABC):
 
         """
 
+    @tracer.wrap()
     async def find_record(
         self, type_filter: str, tag_query: Mapping = None, options: Mapping = None
     ) -> StorageRecord:
