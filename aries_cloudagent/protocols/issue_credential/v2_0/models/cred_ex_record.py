@@ -18,6 +18,8 @@ from ..messages.cred_offer import V20CredOffer, V20CredOfferSchema
 from ..messages.cred_request import V20CredRequest, V20CredRequestSchema
 from ..messages.inner.cred_preview import V20CredPreviewSchema
 
+from ddtrace import tracer
+
 from . import UNENCRYPTED_TAGS
 
 LOGGER = logging.getLogger(__name__)
@@ -145,6 +147,7 @@ class V20CredExRecord(BaseExchangeRecord):
         """Setter; store de/serialized views."""
         self._cred_issue = V20CredIssue.serde(value)
 
+    @tracer.wrap()
     async def save_error_state(
         self,
         session: ProfileSession,
@@ -213,6 +216,7 @@ class V20CredExRecord(BaseExchangeRecord):
         }
 
     @classmethod
+    @tracer.wrap()
     async def retrieve_by_conn_and_thread(
         cls, session: ProfileSession, connection_id: str, thread_id: str
     ) -> "V20CredExRecord":

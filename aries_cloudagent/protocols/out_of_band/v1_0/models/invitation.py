@@ -9,6 +9,8 @@ from .....messaging.valid import UUIDFour
 
 from ..messages.invitation import InvitationMessage, InvitationMessageSchema
 
+from ddtrace import tracer
+
 
 class InvitationRecord(BaseExchangeRecord):
     """Represents an out of band invitation record."""

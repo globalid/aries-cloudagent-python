@@ -28,6 +28,8 @@ from ..wallet.crypto import validate_seed
 
 from .store import AskarStoreConfig, AskarOpenStore
 
+from ddtrace import tracer
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -54,11 +56,13 @@ class AskarProfile(Profile):
         """Accessor for the opened Store instance."""
         return self.opened.store
 
+    @tracer.wrap()
     async def remove(self):
         """Remove the profile."""
         if self.settings.get("multitenant.wallet_type") == "askar-profile":
             await self.store.remove_profile(self.settings.get("wallet.askar_profile"))
 
+    @tracer.wrap()
     def init_ledger_pool(self):
         """Initialize the ledger pool."""
         if self.settings.get("ledger.disabled"):
@@ -140,6 +144,7 @@ class AskarProfile(Profile):
         """
         return AskarProfileSession(self, True, context=context)
 
+    @tracer.wrap()
     async def close(self):
         """Close the profile instance."""
         if self.opened:
@@ -186,6 +191,7 @@ class AskarProfileSession(ProfileSession):
             return self._handle.is_transaction
         return self._opener.is_transaction
 
+    @tracer.wrap()
     async def _setup(self):
         """Create the session or transaction connection, if needed."""
         self._acquire_start = time.perf_counter()
@@ -206,6 +212,7 @@ class AskarProfileSession(ProfileSession):
             ClassProvider("aries_cloudagent.storage.askar.AskarStorage", ref(self)),
         )
 
+    @tracer.wrap()
     async def _teardown(self, commit: bool = None):
         """Dispose of the session or transaction connection."""
         if commit:
@@ -237,6 +244,7 @@ class AskarProfileSession(ProfileSession):
 class AskarProfileManager(ProfileManager):
     """Manager for Aries-Askar stores."""
 
+    @tracer.wrap()
     async def provision(
         self, context: InjectionContext, config: Mapping[str, Any] = None
     ) -> Profile:
@@ -245,6 +253,7 @@ class AskarProfileManager(ProfileManager):
         opened = await store_config.open_store(provision=True)
         return AskarProfile(opened, context)
 
+    @tracer.wrap()
     async def open(
         self, context: InjectionContext, config: Mapping[str, Any] = None
     ) -> Profile:
@@ -254,6 +263,7 @@ class AskarProfileManager(ProfileManager):
         return AskarProfile(opened, context)
 
     @classmethod
+    @tracer.wrap()
     async def generate_store_key(self, seed: str = None) -> str:
         """Generate a raw store key."""
         return Store.generate_raw_key(validate_seed(seed))

@@ -11,6 +11,8 @@ from ..wallet.models.wallet_record import WalletRecord
 from ..askar.profile import AskarProfile
 from ..multitenant.base import BaseMultitenantManager
 
+from ddtrace import tracer
+
 LOGGER = logging.getLogger(__name__)
 
 class AskarProfileMultitenantManager(BaseMultitenantManager):
@@ -26,6 +28,7 @@ class AskarProfileMultitenantManager(BaseMultitenantManager):
         """
         super().__init__(profile)
 
+    @tracer.wrap()
     async def get_wallet_profile(
         self,
         base_context: InjectionContext,
@@ -89,6 +92,7 @@ class AskarProfileMultitenantManager(BaseMultitenantManager):
 
         return AskarProfile(multitenant_wallet.opened, profile_context)
 
+    @tracer.wrap()
     async def remove_wallet_profile(self, profile: Profile):
         """Remove the wallet profile instance.
 
