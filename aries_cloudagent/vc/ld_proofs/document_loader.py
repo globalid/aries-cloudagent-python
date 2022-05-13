@@ -14,6 +14,7 @@ from ...resolver.did_resolver import DIDResolver
 
 from .error import LinkedDataProofException
 
+from ddtrace import tracer
 
 class DocumentLoader:
     """JSON-LD document loader."""
@@ -33,6 +34,7 @@ class DocumentLoader:
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         self.cache_ttl = cache_ttl
 
+    @tracer.wrap()
     async def _load_did_document(self, did: str, options: dict):
         # Resolver expects plain did without path, query, etc...
         # DIDUrl throws error if it contains no path, query etc...
@@ -50,12 +52,14 @@ class DocumentLoader:
 
         return document
 
+    @tracer.wrap()
     def _load_http_document(self, url: str, options: dict):
         document = self.requests_loader(url, options)
 
         return document
 
     # Async document loader can use await for cache and did resolver
+    @tracer.wrap()
     async def _load_async(self, url: str, options: dict):
         """Retrieve http(s) or did document."""
 
@@ -84,6 +88,7 @@ class DocumentLoader:
 
         return document
 
+    @tracer.wrap()
     def _load_sync(self, url: str, options: dict):
         """Run document loader in event loop to make it async.
 
@@ -93,6 +98,7 @@ class DocumentLoader:
         loop = asyncio.new_event_loop()
         return loop.run_until_complete(self._load_async(url, options))
 
+    @tracer.wrap()
     def load_document(self, url: str, options: dict):
         """Load JSON-LD document.
 
@@ -104,6 +110,7 @@ class DocumentLoader:
         future = self.executor.submit(self._load_sync, url, options)
         return future.result()
 
+    @tracer.wrap()
     def __call__(self, url: str, options: dict):
         """Load JSON-LD Document."""
 

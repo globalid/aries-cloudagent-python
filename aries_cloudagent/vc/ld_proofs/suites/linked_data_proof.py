@@ -14,6 +14,7 @@ from ..error import LinkedDataProofException
 from ..purposes import _ProofPurpose as ProofPurpose
 from ..validation_result import ProofResult
 
+from ddtrace import tracer
 
 class DeriveProofResult(TypedDict):
     """Result dict for deriving a proof."""
@@ -37,6 +38,7 @@ class LinkedDataProof(ABC):
         self.proof = proof
         self.supported_derive_proof_types = supported_derive_proof_types
 
+    @tracer.wrap()
     async def create_proof(
         self,
         *,
@@ -59,6 +61,7 @@ class LinkedDataProof(ABC):
             f"{self.signature_type} signature suite does not support creating proofs"
         )
 
+    @tracer.wrap()
     async def verify_proof(
         self,
         *,
@@ -83,6 +86,7 @@ class LinkedDataProof(ABC):
             f"{self.signature_type} signature suite does not support verifying proofs"
         )
 
+    @tracer.wrap()
     async def derive_proof(
         self,
         *,
@@ -109,6 +113,7 @@ class LinkedDataProof(ABC):
             f"{self.signature_type} signature suite does not support deriving proofs"
         )
 
+    @tracer.wrap()
     def _canonize(self, *, input, document_loader: DocumentLoaderMethod) -> str:
         """Canonize input document using URDNA2015 algorithm."""
         # application/n-quads format always returns str
@@ -129,6 +134,7 @@ class LinkedDataProof(ABC):
             },
         )
 
+    @tracer.wrap()
     def _get_verification_method(
         self, *, proof: dict, document_loader: DocumentLoaderMethod
     ) -> dict:

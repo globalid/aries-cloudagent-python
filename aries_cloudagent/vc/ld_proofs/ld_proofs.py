@@ -8,7 +8,10 @@ from .purposes import _ProofPurpose as ProofPurpose
 from .suites import _LinkedDataProof as LinkedDataProof
 from .validation_result import DocumentVerificationResult
 
+from ddtrace import tracer
 
+
+@tracer.wrap()
 async def sign(
     *,
     document: dict,
