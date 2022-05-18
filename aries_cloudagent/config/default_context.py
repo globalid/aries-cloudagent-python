@@ -39,7 +39,7 @@ class DefaultContextBuilder(ContextBuilder):
             context.injector.bind_instance(Collector, collector)
 
         # Shared in-memory cache
-        context.injector.bind_instance(BaseCache, InMemoryCache())
+        # context.injector.bind_instance(BaseCache, InMemoryCache())
 
         # Global protocol registry
         context.injector.bind_instance(ProtocolRegistry, ProtocolRegistry())
