@@ -11,7 +11,7 @@ services:
       - ACAPY_ADMIN_INSECURE_MODE=true
       - ACAPY_WALLET_TYPE=askar
       - ACAPY_TRACE=true
-      - ACAPY_LOG_LEVEL=INFO
+      - ACAPY_LOG_LEVEL=DEBUG
       - ACAPY_WALLET_STORAGE_TYPE=postgres_storage
       - ACAPY_WALLET_STORAGE_CONFIG={"url":"postgres"}
       - ACAPY_WALLET_STORAGE_CREDS={"account":"root","password":"root","admin_account":"root","admin_password":"root"}
