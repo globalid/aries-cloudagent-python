@@ -535,6 +535,20 @@ class GeneralGroup(ArgumentGroup):
         )
 
         parser.add_argument(
+            "--block-plugin",
+            dest="blocked_plugins",
+            type=str,
+            action="append",
+            required=False,
+            metavar="<module>",
+            env_var="ACAPY_BLOCKED_PLUGIN",
+            help=(
+                "Block <module> plugin module from loading. Multiple "
+                "instances of this parameter can be specified."
+            ),
+        )
+
+        parser.add_argument(
             "--plugin-config",
             dest="plugin_config",
             type=str,
@@ -611,6 +625,9 @@ class GeneralGroup(ArgumentGroup):
         if args.external_plugins:
             settings["external_plugins"] = args.external_plugins
 
+        if args.blocked_plugins:
+            settings["blocked_plugins"] = args.blocked_plugins
+
         if args.plugin_config:
             with open(args.plugin_config, "r") as stream:
                 settings["plugin_config"] = yaml.safe_load(stream)
@@ -680,7 +697,7 @@ class RevocationGroup(ArgumentGroup):
         parser.add_argument(
             "--monitor-revocation-notification",
             action="store_true",
-            env_var="ACAPY_NOTIFY_REVOCATION",
+            env_var="ACAPY_MONITOR_REVOCATION_NOTIFICATION",
             help=(
                 "Specifies that aca-py will emit webhooks on notification of "
                 "revocation received."
@@ -1170,22 +1187,6 @@ class TransportGroup(ArgumentGroup):
             ),
         )
         parser.add_argument(
-            "-oq",
-            "--outbound-queue",
-            dest="outbound_queue",
-            type=str,
-            env_var="ACAPY_OUTBOUND_TRANSPORT_QUEUE",
-            help=(
-                "Defines the location of the Outbound Queue Engine. This must be "
-                "a 'dotpath' to a Python module on the PYTHONPATH, followed by a "
-                "colon, followed by the name of a Python class that implements "
-                "BaseOutboundQueue. This commandline option is the official entry "
-                "point of ACA-py's pluggable queue interface. The default value is: "
-                "'aries_cloudagent.transport.outbound.queue.redis:RedisOutboundQueue'."
-                ""
-            ),
-        )
-        parser.add_argument(
             "-l",
             "--label",
             type=str,
@@ -1264,20 +1265,10 @@ class TransportGroup(ArgumentGroup):
             settings["transport.inbound_configs"] = args.inbound_transports
         else:
             raise ArgsParseError("-it/--inbound-transport is required")
-        if not args.outbound_transports and not args.outbound_queue:
-            raise ArgsParseError(
-                "-ot/--outbound-transport or -oq/--outbound-queue is required"
-            )
-        if args.outbound_transports and args.outbound_queue:
-            raise ArgsParseError(
-                "-ot/--outbound-transport and -oq/--outbound-queue are "
-                "not allowed together"
-            )
         if args.outbound_transports:
             settings["transport.outbound_configs"] = args.outbound_transports
-        if args.outbound_queue:
-            settings["transport.outbound_queue"] = args.outbound_queue
-
+        else:
+            raise ArgsParseError("-ot/--outbound-transport is required")
         settings["transport.enable_undelivered_queue"] = args.enable_undelivered_queue
 
         if args.label:
@@ -1424,6 +1415,15 @@ class WalletGroup(ArgumentGroup):
             ),
         )
         parser.add_argument(
+            "--wallet-allow-insecure-seed",
+            action="store_true",
+            env_var="ACAPY_WALLET_ALLOW_INSECURE_SEED",
+            help=(
+                "If this parameter is set, allows to use a custom seed "
+                "to create a local DID"
+            ),
+        )
+        parser.add_argument(
             "--wallet-key",
             type=str,
             metavar="<wallet-key>",
@@ -1543,6 +1543,8 @@ class WalletGroup(ArgumentGroup):
             settings["wallet.seed"] = args.seed
         if args.wallet_local_did:
             settings["wallet.local_did"] = True
+        if args.wallet_allow_insecure_seed:
+            settings["wallet.allow_insecure_seed"] = True
         if args.wallet_key:
             settings["wallet.key"] = args.wallet_key
         if args.wallet_rekey:
@@ -1623,7 +1625,7 @@ class MultitenantGroup(ArgumentGroup):
             help=(
                 'Specify multitenancy configuration ("wallet_type" and "wallet_name"). '
                 'For example: "{"wallet_type":"askar-profile","wallet_name":'
-                '"askar-profile-name"}"'
+                '"askar-profile-name", "key_derivation_method":"RAW"}"'
                 '"wallet_name" is only used when "wallet_type" is "askar-profile"'
             ),
         )
@@ -1656,6 +1658,11 @@ class MultitenantGroup(ArgumentGroup):
                     settings["multitenant.wallet_name"] = multitenancyConfig.get(
                         "wallet_name"
                     )
+
+                if multitenancyConfig.get("key_derivation_method"):
+                    settings[
+                        "multitenant.key_derivation_method"
+                    ] = multitenancyConfig.get("key_derivation_method")
 
         return settings
 
