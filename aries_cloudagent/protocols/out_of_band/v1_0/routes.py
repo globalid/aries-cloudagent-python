@@ -23,6 +23,8 @@ from .messages.invitation import HSProto, InvitationMessage, InvitationMessageSc
 from .message_types import SPEC_URI
 from .models.invitation import InvitationRecordSchema
 
+from ddtrace import tracer
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -135,6 +137,7 @@ class InvitationReceiveQueryStringSchema(OpenAPISchema):
 @querystring_schema(InvitationCreateQueryStringSchema())
 @request_schema(InvitationCreateRequestSchema())
 @response_schema(InvitationRecordSchema(), description="")
+@tracer.wrap()
 async def invitation_create(request: web.BaseRequest):
     """
     Request handler for creating a new connection invitation.
@@ -189,6 +192,7 @@ async def invitation_create(request: web.BaseRequest):
 @querystring_schema(InvitationReceiveQueryStringSchema())
 @request_schema(InvitationMessageSchema())
 @response_schema(ConnRecordSchema(), 200, description="")
+@tracer.wrap()
 async def invitation_receive(request: web.BaseRequest):
     """
     Request handler for receiving a new connection invitation.

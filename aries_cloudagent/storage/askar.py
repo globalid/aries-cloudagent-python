@@ -21,6 +21,8 @@ from .error import (
 )
 from .record import StorageRecord
 
+from ddtrace import tracer
+
 
 class AskarStorage(BaseStorage):
     """Aries-Askar Non-Secrets interface."""
@@ -39,6 +41,7 @@ class AskarStorage(BaseStorage):
         """Accessor for Askar profile session instance."""
         return self._session
 
+    @tracer.wrap()
     async def add_record(self, record: StorageRecord):
         """
         Add a new record to the store.
@@ -59,6 +62,7 @@ class AskarStorage(BaseStorage):
                 ) from None
             raise StorageError("Error when adding storage record") from err
 
+    @tracer.wrap()
     async def get_record(
         self, record_type: str, record_id: str, options: Mapping = None
     ) -> StorageRecord:
@@ -102,6 +106,7 @@ class AskarStorage(BaseStorage):
             tags=item.tags or {},
         )
 
+    @tracer.wrap()
     async def update_record(self, record: StorageRecord, value: str, tags: Mapping):
         """
         Update an existing stored record's value.
@@ -124,6 +129,7 @@ class AskarStorage(BaseStorage):
                 raise StorageNotFoundError("Record not found") from None
             raise StorageError("Error when updating storage record value") from err
 
+    @tracer.wrap()
     async def delete_record(self, record: StorageRecord):
         """
         Delete a record.
@@ -147,6 +153,7 @@ class AskarStorage(BaseStorage):
             else:
                 raise StorageError("Error when removing storage record") from err
 
+    @tracer.wrap()
     async def find_record(
         self, type_filter: str, tag_query: Mapping, options: Mapping = None
     ) -> StorageRecord:
@@ -177,6 +184,7 @@ class AskarStorage(BaseStorage):
             tags=row.tags,
         )
 
+    @tracer.wrap()
     async def find_all_records(
         self,
         type_filter: str,
@@ -199,6 +207,7 @@ class AskarStorage(BaseStorage):
             )
         return results
 
+    @tracer.wrap()
     async def delete_all_records(
         self,
         type_filter: str,
@@ -220,6 +229,7 @@ class AskarStorageSearch(BaseStorageSearch):
         """
         self._profile = profile
 
+    @tracer.wrap()
     def search_records(
         self,
         type_filter: str,
@@ -320,6 +330,7 @@ class AskarStorageSearchSession(BaseStorageSearchSession):
             tags=row.tags,
         )
 
+    @tracer.wrap()
     async def fetch(self, max_count: int = None) -> Sequence[StorageRecord]:
         """
         Fetch the next list of results from the store.
@@ -366,6 +377,7 @@ class AskarStorageSearchSession(BaseStorageSearchSession):
 
         return ret
 
+    @tracer.wrap()
     async def _open(self):
         """Start the search query."""
         if self._scan:

@@ -25,6 +25,8 @@ from .manager import DIDXManager, DIDXManagerError
 from .message_types import SPEC_URI
 from .messages.request import DIDXRequest, DIDXRequestSchema
 
+from ddtrace import tracer
+
 
 class DIDXAcceptInvitationQueryStringSchema(OpenAPISchema):
     """Parameters and validators for accept invitation request query string."""
@@ -124,6 +126,7 @@ class DIDXConnIdRefIdMatchInfoSchema(OpenAPISchema):
 @match_info_schema(DIDXConnIdMatchInfoSchema())
 @querystring_schema(DIDXAcceptInvitationQueryStringSchema())
 @response_schema(ConnRecordSchema(), 200, description="")
+@tracer.wrap()
 async def didx_accept_invitation(request: web.BaseRequest):
     """
     Request handler for accepting a stored connection invitation.
@@ -171,6 +174,7 @@ async def didx_accept_invitation(request: web.BaseRequest):
 )
 @querystring_schema(DIDXCreateRequestImplicitQueryStringSchema())
 @response_schema(ConnRecordSchema(), 200, description="")
+@tracer.wrap()
 async def didx_create_request_implicit(request: web.BaseRequest):
     """
     Request handler for creating and sending a request to an implicit invitation.
@@ -217,6 +221,7 @@ async def didx_create_request_implicit(request: web.BaseRequest):
 @querystring_schema(DIDXReceiveRequestImplicitQueryStringSchema())
 @request_schema(DIDXRequestSchema())
 @response_schema(ConnRecordSchema(), 200, description="")
+@tracer.wrap()
 async def didx_receive_request_implicit(request: web.BaseRequest):
     """
     Request handler for receiving a request against public DID's implicit invitation.
@@ -264,6 +269,7 @@ async def didx_receive_request_implicit(request: web.BaseRequest):
 @match_info_schema(DIDXConnIdMatchInfoSchema())
 @querystring_schema(DIDXAcceptRequestQueryStringSchema())
 @response_schema(ConnRecordSchema(), 200, description="")
+@tracer.wrap()
 async def didx_accept_request(request: web.BaseRequest):
     """
     Request handler for accepting a stored connection request.

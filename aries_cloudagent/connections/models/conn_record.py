@@ -30,6 +30,8 @@ from ...storage.base import BaseStorage
 from ...storage.record import StorageRecord
 from ...storage.error import StorageNotFoundError
 
+from ddtrace import tracer
+
 
 class ConnRecord(BaseRecord):
     """Represents a single pairwise connection."""
@@ -284,6 +286,7 @@ class ConnRecord(BaseRecord):
         }
 
     @classmethod
+    @tracer.wrap()
     async def retrieve_by_did(
         cls,
         session: ProfileSession,
@@ -312,6 +315,7 @@ class ConnRecord(BaseRecord):
         return await cls.retrieve_by_tag_filter(session, tag_filter, post_filter)
 
     @classmethod
+    @tracer.wrap()
     async def retrieve_by_invitation_key(
         cls, session: ProfileSession, invitation_key: str, their_role: str = None
     ) -> "ConnRecord":
@@ -331,6 +335,7 @@ class ConnRecord(BaseRecord):
         return await cls.retrieve_by_tag_filter(session, tag_filter, post_filter)
 
     @classmethod
+    @tracer.wrap()
     async def retrieve_by_invitation_msg_id(
         cls, session: ProfileSession, invitation_msg_id: str, their_role: str = None
     ) -> Optional["ConnRecord"]:
@@ -353,6 +358,7 @@ class ConnRecord(BaseRecord):
             return None
 
     @classmethod
+    @tracer.wrap()
     async def find_existing_connection(
         cls, session: ProfileSession, their_public_did: str
     ) -> Optional["ConnRecord"]:
@@ -373,6 +379,7 @@ class ConnRecord(BaseRecord):
         return None
 
     @classmethod
+    @tracer.wrap()
     async def retrieve_by_request_id(
         cls, session: ProfileSession, request_id: str, their_role: str = None
     ) -> "ConnRecord":
@@ -388,6 +395,7 @@ class ConnRecord(BaseRecord):
         return await cls.retrieve_by_tag_filter(session, tag_filter)
 
     @classmethod
+    @tracer.wrap()
     async def retrieve_by_alias(
         cls, session: ProfileSession, alias: str
     ) -> "ConnRecord":
@@ -400,6 +408,7 @@ class ConnRecord(BaseRecord):
         post_filter = {"alias": alias}
         return await cls.query(session, post_filter_positive=post_filter)
 
+    @tracer.wrap()
     async def attach_invitation(
         self,
         session: ProfileSession,
@@ -420,6 +429,7 @@ class ConnRecord(BaseRecord):
         storage = session.inject(BaseStorage)
         await storage.add_record(record)
 
+    @tracer.wrap()
     async def retrieve_invitation(
         self, session: ProfileSession
     ) -> Union[ConnectionInvitation, OOBInvitation]:
@@ -441,6 +451,7 @@ class ConnRecord(BaseRecord):
             else OOBInvitation
         ).deserialize(ser)
 
+    @tracer.wrap()
     async def attach_request(
         self,
         session: ProfileSession,
@@ -461,6 +472,7 @@ class ConnRecord(BaseRecord):
         storage: BaseStorage = session.inject(BaseStorage)
         await storage.add_record(record)
 
+    @tracer.wrap()
     async def retrieve_request(
         self,
         session: ProfileSession,
@@ -495,6 +507,7 @@ class ConnRecord(BaseRecord):
         """Accessor for multi use invitation mode."""
         return self.invitation_mode == self.INVITATION_MODE_MULTI
 
+    @tracer.wrap()
     async def post_save(self, session: ProfileSession, *args, **kwargs):
         """Perform post-save actions.
 
@@ -507,6 +520,7 @@ class ConnRecord(BaseRecord):
         cache_key = f"connection_target::{self.connection_id}"
         await self.clear_cached_key(session, cache_key)
 
+    @tracer.wrap()
     async def delete_record(self, session: ProfileSession):
         """Perform connection record deletion actions.
 
@@ -524,6 +538,7 @@ class ConnRecord(BaseRecord):
                 {"connection_id": self.connection_id},
             )
 
+    @tracer.wrap()
     async def metadata_get(
         self, session: ProfileSession, key: str, default: Any = None
     ) -> Any:
@@ -550,6 +565,7 @@ class ConnRecord(BaseRecord):
         except StorageNotFoundError:
             return default
 
+    @tracer.wrap()
     async def metadata_set(self, session: ProfileSession, key: str, value: Any):
         """Set arbitrary metadata associated with this connection.
 
@@ -575,6 +591,7 @@ class ConnRecord(BaseRecord):
             )
             await storage.add_record(record)
 
+    @tracer.wrap()
     async def metadata_delete(self, session: ProfileSession, key: str):
         """Delete custom metadata associated with this connection.
 
@@ -593,6 +610,7 @@ class ConnRecord(BaseRecord):
         except StorageNotFoundError as err:
             raise KeyError(f"{key} not found in connection metadata") from err
 
+    @tracer.wrap()
     async def metadata_get_all(self, session: ProfileSession) -> dict:
         """Return all custom metadata associated with this connection.
 

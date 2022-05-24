@@ -57,6 +57,8 @@ from ..handler import CredFormatAttachment, V20CredFormatError, V20CredFormatHan
 from .models.cred_detail import LDProofVCDetailSchema
 from .models.cred_detail import LDProofVCDetail
 
+from ddtrace import tracer
+
 LOGGER = logging.getLogger(__name__)
 
 SUPPORTED_ISSUANCE_PROOF_PURPOSES = {
@@ -120,6 +122,7 @@ class LDProofCredFormatHandler(V20CredFormatHandler):
         # Validate, throw if not valid
         Schema(unknown=EXCLUDE).load(attachment_data)
 
+    @tracer.wrap()
     async def get_detail_record(self, cred_ex_id: str) -> V20CredExRecordLDProof:
         """Retrieve credential exchange detail record by cred_ex_id."""
 
@@ -137,6 +140,7 @@ class LDProofCredFormatHandler(V20CredFormatHandler):
             )
         return records[0] if records else None
 
+    @tracer.wrap()
     def get_format_identifier(self, message_type: str) -> str:
         """Get attachment format identifier for format and message combination.
 
@@ -149,6 +153,7 @@ class LDProofCredFormatHandler(V20CredFormatHandler):
         """
         return ATTACHMENT_FORMAT[message_type][LDProofCredFormatHandler.format.api]
 
+    @tracer.wrap()
     def get_format_data(self, message_type: str, data: dict) -> CredFormatAttachment:
         """Get credential format and attachment objects for use in cred ex messages.
 
@@ -175,6 +180,7 @@ class LDProofCredFormatHandler(V20CredFormatHandler):
             ),
         )
 
+    @tracer.wrap()
     async def _assert_can_issue_with_id_and_proof_type(
         self, issuer_id: str, proof_type: str
     ):
@@ -226,6 +232,7 @@ class LDProofCredFormatHandler(V20CredFormatHandler):
                 " Unable to issue credential with this DID."
             )
 
+    @tracer.wrap()
     async def _did_info_for_did(self, did: str) -> DIDInfo:
         """Get the did info for specified did.
 
@@ -252,6 +259,7 @@ class LDProofCredFormatHandler(V20CredFormatHandler):
             # All other methods we can just query
             return await wallet.get_local_did(did)
 
+    @tracer.wrap()
     async def _get_suite_for_detail(self, detail: LDProofVCDetail) -> LinkedDataProof:
         issuer_id = detail.credential.issuer_id
         proof_type = detail.options.proof_type
@@ -278,6 +286,7 @@ class LDProofCredFormatHandler(V20CredFormatHandler):
 
         return suite
 
+    @tracer.wrap()
     async def _get_suite(
         self,
         *,
@@ -304,6 +313,7 @@ class LDProofCredFormatHandler(V20CredFormatHandler):
             ),
         )
 
+    @tracer.wrap()
     def _get_verification_method(self, did: str):
         """Get the verification method for a did."""
 
@@ -317,6 +327,7 @@ class LDProofCredFormatHandler(V20CredFormatHandler):
                 f"Unable to get retrieve verification method for did {did}"
             )
 
+    @tracer.wrap()
     def _get_proof_purpose(
         self, *, proof_purpose: str = None, challenge: str = None, domain: str = None
     ) -> ProofPurpose:
@@ -355,6 +366,7 @@ class LDProofCredFormatHandler(V20CredFormatHandler):
                 f"Supported  proof types are: {SUPPORTED_ISSUANCE_PROOF_PURPOSES}"
             )
 
+    @tracer.wrap()
     async def _prepare_detail(
         self, detail: LDProofVCDetail, holder_did: str = None
     ) -> LDProofVCDetail:
@@ -385,6 +397,7 @@ class LDProofCredFormatHandler(V20CredFormatHandler):
     ) -> None:
         """Receive linked data proof credential proposal."""
 
+    @tracer.wrap()
     async def create_offer(
         self, cred_proposal_message: V20CredProposal
     ) -> CredFormatAttachment:
@@ -424,6 +437,7 @@ class LDProofCredFormatHandler(V20CredFormatHandler):
     ) -> None:
         """Receive linked data proof credential offer."""
 
+    @tracer.wrap()
     async def create_request(
         self, cred_ex_record: V20CredExRecord, request_data: Mapping = None
     ) -> CredFormatAttachment:
@@ -455,6 +469,7 @@ class LDProofCredFormatHandler(V20CredFormatHandler):
     ) -> None:
         """Receive linked data proof request."""
 
+    @tracer.wrap()
     async def issue_credential(
         self, cred_ex_record: V20CredExRecord, retries: int = 5
     ) -> CredFormatAttachment:
@@ -489,6 +504,7 @@ class LDProofCredFormatHandler(V20CredFormatHandler):
 
         return self.get_format_data(CRED_20_ISSUE, vc)
 
+    @tracer.wrap()
     async def receive_credential(
         self, cred_ex_record: V20CredExRecord, cred_issue_message: V20CredIssue
     ) -> None:
@@ -557,6 +573,7 @@ class LDProofCredFormatHandler(V20CredFormatHandler):
                 " match options.proofType from credential request"
             )
 
+    @tracer.wrap()
     async def store_credential(
         self, cred_ex_record: V20CredExRecord, cred_id: str = None
     ) -> None:

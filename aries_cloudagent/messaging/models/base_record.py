@@ -21,6 +21,8 @@ from ..valid import INDY_ISO8601_DATETIME
 
 from .base import BaseModel, BaseModelSchema
 
+from ddtrace import tracer
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -106,6 +108,7 @@ class BaseRecord(BaseModel):
         self.updated_at = datetime_to_str(updated_at)
 
     @classmethod
+    @tracer.wrap()
     def from_storage(cls, record_id: str, record: Mapping[str, Any]):
         """
         Initialize a record from its stored representation.
@@ -219,6 +222,7 @@ class BaseRecord(BaseModel):
             await cache.clear(cache_key)
 
     @classmethod
+    @tracer.wrap()
     async def retrieve_by_id(
         cls: Type[RecordType],
         session: ProfileSession,
@@ -242,6 +246,7 @@ class BaseRecord(BaseModel):
         return cls.from_storage(record_id, vals)
 
     @classmethod
+    @tracer.wrap()
     async def retrieve_by_tag_filter(
         cls: Type[RecordType],
         session: ProfileSession,
@@ -288,6 +293,7 @@ class BaseRecord(BaseModel):
         return found
 
     @classmethod
+    @tracer.wrap()
     async def query(
         cls: Type[RecordType],
         session: ProfileSession,
@@ -332,6 +338,7 @@ class BaseRecord(BaseModel):
                 result.append(cls.from_storage(record.id, vals))
         return result
 
+    @tracer.wrap()
     async def save(
         self,
         session: ProfileSession,
@@ -383,6 +390,7 @@ class BaseRecord(BaseModel):
 
         return self._id
 
+    @tracer.wrap()
     async def post_save(
         self,
         session: ProfileSession,
@@ -405,6 +413,7 @@ class BaseRecord(BaseModel):
         if event:
             await self.emit_event(session, self.serialize())
 
+    @tracer.wrap()
     async def delete_record(self, session: ProfileSession):
         """
         Remove the stored record.

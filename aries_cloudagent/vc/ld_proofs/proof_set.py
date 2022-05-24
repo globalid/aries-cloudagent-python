@@ -11,11 +11,16 @@ from .purposes.proof_purpose import ProofPurpose
 from .suites import _LinkedDataProof as LinkedDataProof
 from .validation_result import DocumentVerificationResult, ProofResult
 
+from ddtrace import tracer
+
+
+
 
 class ProofSet:
     """Class for managing proof sets on a JSON-LD document."""
 
     @staticmethod
+    @tracer.wrap()
     async def add(
         *,
         document: dict,
