@@ -14,8 +14,6 @@ from .validation_result import DocumentVerificationResult, ProofResult
 from ddtrace import tracer
 
 
-
-
 class ProofSet:
     """Class for managing proof sets on a JSON-LD document."""
 

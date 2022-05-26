@@ -15,6 +15,7 @@ from ddtrace import tracer
 
 LOGGER = logging.getLogger(__name__)
 
+
 class AskarProfileMultitenantManager(BaseMultitenantManager):
     """Class for handling askar profile multitenancy."""
 
@@ -76,9 +77,11 @@ class AskarProfileMultitenantManager(BaseMultitenantManager):
         multitenant_wallet = self._instances[multitenant_wallet_name]
         profile_context = multitenant_wallet.context.copy()
 
-        #check response or query if exists, remove cache on error and throw error!
+        # check response or query if exists, remove cache on error and throw error!
         if provision:
-            created_profile = await multitenant_wallet.store.create_profile(wallet_record.wallet_id)
+            created_profile = await multitenant_wallet.store.create_profile(
+                wallet_record.wallet_id
+            )
             LOGGER.info(f"created_profile: {created_profile}")
 
         extra_settings = {

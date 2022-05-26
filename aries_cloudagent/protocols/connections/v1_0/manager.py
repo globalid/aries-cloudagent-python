@@ -1157,10 +1157,8 @@ class ConnectionManager(BaseConnectionManager):
         else:
             if not connection:
                 async with self.profile.session() as session:
-                    connection = await ConnRecord.retrieve_by_id(
-                        session, connection_id
-                    )
-                    
+                    connection = await ConnRecord.retrieve_by_id(session, connection_id)
+
             targets = await self.fetch_connection_targets(connection)
         return targets
 

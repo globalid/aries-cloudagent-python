@@ -458,7 +458,7 @@ class V20CredManager:
             await cred_ex_record.save(session, reason="receive v2.0 credential request")
 
         return cred_ex_record
-    
+
     @tracer.wrap()
     async def issue_credential(
         self,

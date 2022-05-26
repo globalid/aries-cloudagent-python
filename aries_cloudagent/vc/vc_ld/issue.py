@@ -12,6 +12,7 @@ from .models.credential import CredentialSchema
 
 from ddtrace import tracer
 
+
 @tracer.wrap()
 async def issue(
     *,

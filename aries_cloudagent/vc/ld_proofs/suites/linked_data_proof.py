@@ -16,6 +16,7 @@ from ..validation_result import ProofResult
 
 from ddtrace import tracer
 
+
 class DeriveProofResult(TypedDict):
     """Result dict for deriving a proof."""
 

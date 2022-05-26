@@ -20,6 +20,7 @@ nest_asyncio.apply()
 
 from ddtrace import tracer
 
+
 class DocumentLoader:
     """JSON-LD document loader."""
 
