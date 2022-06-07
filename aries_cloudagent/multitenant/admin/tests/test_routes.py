@@ -208,7 +208,7 @@ class TestMultitenantRoutes(AsyncTestCase):
         body = {
             "wallet_name": "test",
             "wallet_key": "test",
-            "wallet_source": "",
+            "wallet_source": None,
             "wallet_webhook_urls": [],
             "wallet_dispatch_type": "base",
             "label": "my_test_label",
