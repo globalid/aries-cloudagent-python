@@ -364,7 +364,14 @@ async def wallet_update(request: web.BaseRequest):
     wallet_source = body.get("wallet_source")
 
     if all(
-        v is None for v in (wallet_webhook_urls, wallet_dispatch_type, label, image_url, wallet_source)
+        v is None
+        for v in (
+            wallet_webhook_urls,
+            wallet_dispatch_type,
+            label,
+            image_url,
+            wallet_source,
+        )
     ):
         raise web.HTTPBadRequest(reason="At least one parameter is required.")
 
