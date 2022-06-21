@@ -2,7 +2,7 @@
 
 import logging
 
-from typing import Any, Mapping, Union
+from typing import Any, Mapping, Optional, Union
 
 from marshmallow import fields, validate
 
@@ -60,7 +60,7 @@ class V10PresentationExchange(BaseExchangeRecord):
         self,
         *,
         presentation_exchange_id: str = None,
-        connection_id: str = None,
+        connection_id: Optional[str] = None,
         thread_id: str = None,
         initiator: str = None,
         role: str = None,
@@ -75,6 +75,7 @@ class V10PresentationExchange(BaseExchangeRecord):
         presentation: Union[IndyProof, Mapping] = None,  # indy proof
         verified: str = None,
         auto_present: bool = False,
+        auto_verify: bool = False,
         error_msg: str = None,
         trace: bool = False,  # backward compat: BaseRecord.from_storage()
         **kwargs,
@@ -96,6 +97,7 @@ class V10PresentationExchange(BaseExchangeRecord):
         self._presentation = IndyProof.serde(presentation)
         self.verified = verified
         self.auto_present = auto_present
+        self.auto_verify = auto_verify
         self.error_msg = error_msg
 
     @property
@@ -203,6 +205,7 @@ class V10PresentationExchange(BaseExchangeRecord):
                     "role",
                     "state",
                     "auto_present",
+                    "auto_verify",
                     "error_msg",
                     "verified",
                     "trace",
@@ -296,6 +299,9 @@ class V10PresentationExchangeSchema(BaseExchangeSchema):
         required=False,
         description="Prover choice to auto-present proof as verifier requests",
         example=False,
+    )
+    auto_verify = fields.Bool(
+        required=False, description="Verifier choice to auto-verify proof presentation"
     )
     error_msg = fields.Str(
         required=False, description="Error message", example="Invalid structure"

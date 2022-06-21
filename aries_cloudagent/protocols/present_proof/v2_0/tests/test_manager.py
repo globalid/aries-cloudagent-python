@@ -20,6 +20,8 @@ from .....ledger.multiple_ledger.ledger_requests_executor import (
 )
 from .....messaging.decorators.attach_decorator import AttachDecorator
 from .....messaging.responder import BaseResponder, MockResponder
+from .....multitenant.base import BaseMultitenantManager
+from .....multitenant.manager import MultitenantManager
 from .....storage.error import StorageNotFoundError
 
 from ...indy import pres_exch_handler as test_indy_util_module
@@ -551,7 +553,7 @@ class TestV20PresManager(AsyncTestCase):
 
             assert px_rec.state == V20PresExRecord.STATE_PROPOSAL_RECEIVED
 
-    async def test_create_bound_request(self):
+    async def test_create_bound_request_a(self):
         comment = "comment"
 
         proposal = V20PresProposal(
@@ -580,6 +582,34 @@ class TestV20PresManager(AsyncTestCase):
         (ret_px_rec, pres_req_msg) = await self.manager.create_bound_request(
             pres_ex_record=px_rec,
             request_data=request_data,
+            comment=comment,
+        )
+        assert ret_px_rec is px_rec
+        px_rec.save.assert_called_once()
+
+    async def test_create_bound_request_b(self):
+        comment = "comment"
+
+        proposal = V20PresProposal(
+            formats=[
+                V20PresFormat(
+                    attach_id="indy",
+                    format_=ATTACHMENT_FORMAT[PRES_20_PROPOSAL][
+                        V20PresFormat.Format.INDY.api
+                    ],
+                )
+            ],
+            proposals_attach=[
+                AttachDecorator.data_base64(INDY_PROOF_REQ_NAME, ident="indy")
+            ],
+        )
+        px_rec = V20PresExRecord(
+            pres_proposal=proposal.serialize(),
+            role=V20PresExRecord.ROLE_VERIFIER,
+        )
+        px_rec.save = async_mock.CoroutineMock()
+        (ret_px_rec, pres_req_msg) = await self.manager.create_bound_request(
+            pres_ex_record=px_rec,
             comment=comment,
         )
         assert ret_px_rec is px_rec
@@ -688,15 +718,9 @@ class TestV20PresManager(AsyncTestCase):
             V20PresExRecord, "retrieve_by_tag_filter", autospec=True
         ) as retrieve_ex:
             mock_receive_pres.return_value = False
-            retrieve_ex.side_effect = [
-                StorageNotFoundError("no such record"),  # cover out-of-band
-                px_rec,
-            ]
+            retrieve_ex.side_effect = [px_rec]
             with self.assertRaises(V20PresManagerError) as context:
-                await self.manager.receive_pres(
-                    pres_x,
-                    connection_record,
-                )
+                await self.manager.receive_pres(pres_x, connection_record, None)
             assert "Unable to verify received presentation." in str(context.exception)
 
     async def test_create_exchange_for_request(self):
@@ -805,7 +829,15 @@ class TestV20PresManager(AsyncTestCase):
                 return_value="/tmp/sample/tails/path"
             )
         )
+        self.profile.context.injector.bind_instance(
+            BaseMultitenantManager,
+            async_mock.MagicMock(MultitenantManager, autospec=True),
+        )
         with async_mock.patch.object(
+            IndyLedgerRequestsExecutor,
+            "get_ledger_for_identifier",
+            async_mock.CoroutineMock(return_value=("test_ledger_id", self.ledger)),
+        ), async_mock.patch.object(
             V20PresExRecord, "save", autospec=True
         ) as save_ex, async_mock.patch.object(
             test_indy_handler, "AttachDecorator", autospec=True
@@ -1261,6 +1293,7 @@ class TestV20PresManager(AsyncTestCase):
                 AttachDecorator.data_base64(INDY_PROOF, ident="indy")
             ],
         )
+        pres.assign_thread_id("thread-id")
 
         px_rec_dummy = V20PresExRecord(
             pres_proposal=pres_proposal.serialize(),
@@ -1282,12 +1315,13 @@ class TestV20PresManager(AsyncTestCase):
             "session",
             async_mock.MagicMock(return_value=self.profile.session()),
         ) as session:
-            retrieve_ex.side_effect = [
-                StorageNotFoundError("no such record"),  # cover out-of-band
-                px_rec_dummy,
-            ]
-            px_rec_out = await self.manager.receive_pres(pres, connection_record)
-            assert retrieve_ex.call_count == 2
+            retrieve_ex.side_effect = [px_rec_dummy]
+            px_rec_out = await self.manager.receive_pres(pres, connection_record, None)
+            retrieve_ex.assert_called_once_with(
+                session.return_value,
+                {"thread_id": "thread-id"},
+                {"role": V20PresExRecord.ROLE_VERIFIER, "connection_id": CONN_ID},
+            )
             save_ex.assert_called_once()
             assert px_rec_out.state == (V20PresExRecord.STATE_PRESENTATION_RECEIVED)
 
@@ -1334,6 +1368,7 @@ class TestV20PresManager(AsyncTestCase):
                 AttachDecorator.data_base64(INDY_PROOF, ident="indy")
             ],
         )
+        pres.assign_thread_id("thread-id")
 
         px_rec_dummy = V20PresExRecord(
             pres_proposal=pres_proposal.serialize(),
@@ -1355,12 +1390,13 @@ class TestV20PresManager(AsyncTestCase):
             "session",
             async_mock.MagicMock(return_value=self.profile.session()),
         ) as session:
-            retrieve_ex.side_effect = [
-                StorageNotFoundError("no such record"),  # cover out-of-band
-                px_rec_dummy,
-            ]
-            px_rec_out = await self.manager.receive_pres(pres, connection_record)
-            assert retrieve_ex.call_count == 2
+            retrieve_ex.side_effect = [px_rec_dummy]
+            px_rec_out = await self.manager.receive_pres(pres, connection_record, None)
+            retrieve_ex.assert_called_once_with(
+                session.return_value,
+                {"thread_id": "thread-id"},
+                {"role": V20PresExRecord.ROLE_VERIFIER, "connection_id": CONN_ID},
+            )
             save_ex.assert_called_once()
             assert px_rec_out.state == (V20PresExRecord.STATE_PRESENTATION_RECEIVED)
 
@@ -1421,7 +1457,7 @@ class TestV20PresManager(AsyncTestCase):
         ) as retrieve_ex:
             retrieve_ex.return_value = px_rec_dummy
             with self.assertRaises(V20PresFormatHandlerError) as context:
-                await self.manager.receive_pres(pres_x, connection_record)
+                await self.manager.receive_pres(pres_x, connection_record, None)
             assert "does not satisfy proof request restrictions" in str(
                 context.exception
             )
@@ -1477,7 +1513,7 @@ class TestV20PresManager(AsyncTestCase):
         ) as retrieve_ex:
             retrieve_ex.return_value = px_rec_dummy
             with self.assertRaises(V20PresFormatHandlerError) as context:
-                await self.manager.receive_pres(pres_x, connection_record)
+                await self.manager.receive_pres(pres_x, connection_record, None)
             assert "Presentation referent" in str(context.exception)
 
     async def test_receive_pres_bait_and_switch_attr_names(self):
@@ -1536,7 +1572,7 @@ class TestV20PresManager(AsyncTestCase):
         ) as retrieve_ex:
             retrieve_ex.return_value = px_rec_dummy
             with self.assertRaises(V20PresFormatHandlerError) as context:
-                await self.manager.receive_pres(pres_x, connection_record)
+                await self.manager.receive_pres(pres_x, connection_record, None)
             assert "does not satisfy proof request restrictions " in str(
                 context.exception
             )
@@ -1592,7 +1628,7 @@ class TestV20PresManager(AsyncTestCase):
         ) as retrieve_ex:
             retrieve_ex.return_value = px_rec_dummy
             with self.assertRaises(V20PresFormatHandlerError) as context:
-                await self.manager.receive_pres(pres_x, connection_record)
+                await self.manager.receive_pres(pres_x, connection_record, None)
             assert "Presentation referent" in str(context.exception)
 
     async def test_receive_pres_bait_and_switch_pred(self):
@@ -1649,7 +1685,7 @@ class TestV20PresManager(AsyncTestCase):
         ) as retrieve_ex:
             retrieve_ex.return_value = px_rec_dummy
             with self.assertRaises(V20PresFormatHandlerError) as context:
-                await self.manager.receive_pres(pres_x, connection_record)
+                await self.manager.receive_pres(pres_x, connection_record, None)
             assert "not in proposal request" in str(context.exception)
 
         indy_proof_req["requested_predicates"]["0_highscore_GE_uuid"] = {
@@ -1707,7 +1743,7 @@ class TestV20PresManager(AsyncTestCase):
         ) as retrieve_ex:
             retrieve_ex.return_value = px_rec_dummy
             with self.assertRaises(V20PresFormatHandlerError) as context:
-                await self.manager.receive_pres(pres_x, connection_record)
+                await self.manager.receive_pres(pres_x, connection_record, None)
             assert "shenanigans not in presentation" in str(context.exception)
 
         indy_proof_req["requested_predicates"]["0_highscore_GE_uuid"] = {
@@ -1765,7 +1801,7 @@ class TestV20PresManager(AsyncTestCase):
         ) as retrieve_ex:
             retrieve_ex.return_value = px_rec_dummy
             with self.assertRaises(V20PresFormatHandlerError) as context:
-                await self.manager.receive_pres(pres_x, connection_record)
+                await self.manager.receive_pres(pres_x, connection_record, None)
             assert "highScore mismatches proposal request" in str(context.exception)
 
         indy_proof_req["requested_predicates"]["0_highscore_GE_uuid"] = {
@@ -1823,7 +1859,7 @@ class TestV20PresManager(AsyncTestCase):
         ) as retrieve_ex:
             retrieve_ex.return_value = px_rec_dummy
             with self.assertRaises(V20PresFormatHandlerError) as context:
-                await self.manager.receive_pres(pres_x, connection_record)
+                await self.manager.receive_pres(pres_x, connection_record, None)
             assert "does not satisfy proof request restrictions " in str(
                 context.exception
             )
@@ -1858,8 +1894,15 @@ class TestV20PresManager(AsyncTestCase):
             pres_request=pres_request,
             pres=pres,
         )
-
-        with async_mock.patch.object(V20PresExRecord, "save", autospec=True) as save_ex:
+        self.profile.context.injector.bind_instance(
+            BaseMultitenantManager,
+            async_mock.MagicMock(MultitenantManager, autospec=True),
+        )
+        with async_mock.patch.object(
+            IndyLedgerRequestsExecutor,
+            "get_ledger_for_identifier",
+            async_mock.CoroutineMock(return_value=("test_ledger_id", self.ledger)),
+        ), async_mock.patch.object(V20PresExRecord, "save", autospec=True) as save_ex:
             px_rec_out = await self.manager.verify_pres(px_rec_in)
             save_ex.assert_called_once()
 
@@ -1962,7 +2005,7 @@ class TestV20PresManager(AsyncTestCase):
             "retrieve_by_tag_filter",
             async_mock.CoroutineMock(),
         ) as retrieve_ex:
-            retrieve_ex.side_effect = test_module.StorageNotFoundError("No such record")
+            retrieve_ex.side_effect = StorageNotFoundError("No such record")
 
-            with self.assertRaises(test_module.StorageNotFoundError):
+            with self.assertRaises(StorageNotFoundError):
                 await self.manager.receive_problem_report(problem, connection_id)

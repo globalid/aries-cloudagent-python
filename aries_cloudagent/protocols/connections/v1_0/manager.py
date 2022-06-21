@@ -2,8 +2,10 @@
 
 import logging
 
-from typing import Coroutine, Sequence, Tuple
+from typing import Coroutine, Optional, Sequence, Tuple
 
+
+from ....core.oob_processor import OobMessageProcessor
 from ....cache.base import BaseCache
 from ....config.base import InjectionError
 from ....connections.base_manager import BaseConnectionManager
@@ -281,11 +283,11 @@ class ConnectionManager(BaseConnectionManager):
     async def receive_invitation(
         self,
         invitation: ConnectionInvitation,
-        their_public_did: str = None,
-        auto_accept: bool = None,
-        alias: str = None,
-        mediation_id: str = None,
-        mediation_record: MediationRecord = None,
+        their_public_did: Optional[str] = None,
+        auto_accept: Optional[bool] = None,
+        alias: Optional[str] = None,
+        mediation_id: Optional[str] = None,
+        mediation_record: Optional[MediationRecord] = None,
     ) -> ConnRecord:
         """
         Create a new connection record to track a received invitation.
@@ -641,6 +643,10 @@ class ConnectionManager(BaseConnectionManager):
                 keylist_updates, connection_id=mediation_record.connection_id
             )
 
+        # Clean associated oob record if not needed anymore
+        oob_processor = self.profile.inject(OobMessageProcessor)
+        await oob_processor.clean_finished_oob_record(self.profile, request)
+
         return connection
 
     async def create_response(
@@ -835,6 +841,17 @@ class ConnectionManager(BaseConnectionManager):
             )
         if their_did != conn_did_doc.did:
             raise ConnectionManagerError("Connection DID does not match DIDDoc id")
+        # Verify connection response using connection field
+        async with self.profile.session() as session:
+            wallet = session.inject(BaseWallet)
+            try:
+                await response.verify_signed_field(
+                    "connection", wallet, connection.invitation_key
+                )
+            except ValueError:
+                raise ConnectionManagerError(
+                    "connection field verification using invitation_key failed"
+                )
         await self.store_did_document(conn_did_doc)
 
         connection.their_did = their_did

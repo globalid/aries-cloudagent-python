@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 
-from typing import Mapping, Tuple
+from typing import Mapping, Optional, Tuple
 
 from ....cache.base import BaseCache
 from ....core.error import BaseError
@@ -21,13 +21,16 @@ from ....messaging.credential_definitions.util import (
     CRED_DEF_SENT_RECORD_TYPE,
 )
 from ....messaging.responder import BaseResponder
+from ....multitenant.base import BaseMultitenantManager
 from ....revocation.indy import IndyRevocation
 from ....revocation.models.revocation_registry import RevocationRegistry
 from ....revocation.models.issuer_rev_reg_record import IssuerRevRegRecord
 from ....revocation.util import notify_revocation_reg_event
 from ....storage.base import BaseStorage
 from ....storage.error import StorageError, StorageNotFoundError
+from ....connections.models.conn_record import ConnRecord
 
+from ...out_of_band.v1_0.models.oob_record import OobRecord
 from .messages.credential_ack import CredentialAck
 from .messages.credential_issue import CredentialIssue
 from .messages.credential_offer import CredentialOffer
@@ -266,7 +269,11 @@ class CredentialManager:
         credential_preview = credential_proposal_message.credential_proposal
 
         # vet attributes
-        ledger_exec_inst = self._profile.inject(IndyLedgerRequestsExecutor)
+        multitenant_mgr = self.profile.inject_or(BaseMultitenantManager)
+        if multitenant_mgr:
+            ledger_exec_inst = IndyLedgerRequestsExecutor(self.profile)
+        else:
+            ledger_exec_inst = self.profile.inject(IndyLedgerRequestsExecutor)
         ledger = (
             await ledger_exec_inst.get_ledger_for_identifier(
                 cred_def_id,
@@ -325,7 +332,7 @@ class CredentialManager:
         return (cred_ex_record, credential_offer_message)
 
     async def receive_offer(
-        self, message: CredentialOffer, connection_id: str
+        self, message: CredentialOffer, connection_id: Optional[str]
     ) -> V10CredentialExchange:
         """
         Receive a credential offer.
@@ -352,7 +359,11 @@ class CredentialManager:
             try:
                 cred_ex_record = await (
                     V10CredentialExchange.retrieve_by_connection_and_thread(
-                        txn, connection_id, message._thread_id, for_update=True
+                        txn,
+                        connection_id,
+                        message._thread_id,
+                        role=V10CredentialExchange.ROLE_HOLDER,
+                        for_update=True,
                     )
                 )
             except StorageNotFoundError:  # issuer sent this offer free of any proposal
@@ -375,6 +386,7 @@ class CredentialManager:
                     )
 
             cred_ex_record.credential_proposal_dict = credential_proposal_dict
+            cred_ex_record.credential_offer_dict = message
             cred_ex_record.credential_offer = indy_offer
             cred_ex_record.state = V10CredentialExchange.STATE_OFFER_RECEIVED
             cred_ex_record.schema_id = schema_id
@@ -406,7 +418,11 @@ class CredentialManager:
         cred_req_meta = None
 
         async def _create():
-            ledger_exec_inst = self._profile.inject(IndyLedgerRequestsExecutor)
+            multitenant_mgr = self.profile.inject_or(BaseMultitenantManager)
+            if multitenant_mgr:
+                ledger_exec_inst = IndyLedgerRequestsExecutor(self.profile)
+            else:
+                ledger_exec_inst = self.profile.inject(IndyLedgerRequestsExecutor)
             ledger = (
                 await ledger_exec_inst.get_ledger_for_identifier(
                     credential_definition_id,
@@ -481,14 +497,22 @@ class CredentialManager:
         credential_request_message = CredentialRequest(
             requests_attach=[CredentialRequest.wrap_indy_cred_req(cred_req_ser)]
         )
-        credential_request_message._thread = {"thid": cred_ex_record.thread_id}
+        # Assign thid (and optionally pthid) to message
+        credential_request_message.assign_thread_from(
+            cred_ex_record.credential_offer_dict
+        )
         credential_request_message.assign_trace_decorator(
             self._profile.settings, cred_ex_record.trace
         )
 
         return (cred_ex_record, credential_request_message)
 
-    async def receive_request(self, message: CredentialRequest, connection_id: str):
+    async def receive_request(
+        self,
+        message: CredentialRequest,
+        connection_record: Optional[ConnRecord],
+        oob_record: Optional[OobRecord],
+    ):
         """
         Receive a credential request.
 
@@ -502,26 +526,26 @@ class CredentialManager:
         assert len(message.requests_attach or []) == 1
         credential_request = message.indy_cred_req(0)
 
+        # connection_id is None in the record if this is in response to
+        # an request~attach from an OOB message. If so, we do not want to filter
+        # the record by connection_id.
+        connection_id = None if oob_record else connection_record.connection_id
+
         async with self._profile.transaction() as txn:
             try:
                 cred_ex_record = await (
                     V10CredentialExchange.retrieve_by_connection_and_thread(
-                        txn, connection_id, message._thread_id, for_update=True
+                        txn,
+                        connection_id,
+                        message._thread_id,
+                        role=V10CredentialExchange.ROLE_ISSUER,
+                        for_update=True,
                     )
                 )
             except StorageNotFoundError:
-                try:
-                    cred_ex_record = await V10CredentialExchange.retrieve_by_tag_filter(
-                        txn,
-                        {"thread_id": message._thread_id},
-                        {"connection_id": None},
-                        for_update=True,
-                    )
-                    cred_ex_record.connection_id = connection_id
-                except StorageNotFoundError:
-                    raise CredentialManagerError(
-                        "Indy issue credential format can't start from credential request"
-                    ) from None
+                raise CredentialManagerError(
+                    "Indy issue credential format can't start from credential request"
+                ) from None
             if cred_ex_record.state != V10CredentialExchange.STATE_OFFER_SENT:
                 LOGGER.error(
                     "Skipping credential request; exchange state is %s (id=%s)",
@@ -529,6 +553,10 @@ class CredentialManager:
                     cred_ex_record.credential_exchange_id,
                 )
                 return None
+
+            if connection_record:
+                cred_ex_record.connection_id = connection_record.connection_id
+
             cred_ex_record.credential_request = credential_request
             cred_ex_record.state = V10CredentialExchange.STATE_REQUEST_RECEIVED
             await cred_ex_record.save(txn, reason="receive credential request")
@@ -572,7 +600,11 @@ class CredentialManager:
             cred_offer_ser = cred_ex_record._credential_offer.ser
             cred_req_ser = cred_ex_record._credential_request.ser
             schema_id = cred_ex_record.schema_id
-            ledger_exec_inst = self._profile.inject(IndyLedgerRequestsExecutor)
+            multitenant_mgr = self.profile.inject_or(BaseMultitenantManager)
+            if multitenant_mgr:
+                ledger_exec_inst = IndyLedgerRequestsExecutor(self.profile)
+            else:
+                ledger_exec_inst = self.profile.inject(IndyLedgerRequestsExecutor)
             ledger = (
                 await ledger_exec_inst.get_ledger_for_identifier(
                     schema_id,
@@ -741,7 +773,7 @@ class CredentialManager:
         return (cred_ex_record, credential_message)
 
     async def receive_credential(
-        self, message: CredentialIssue, connection_id: str
+        self, message: CredentialIssue, connection_id: Optional[str]
     ) -> V10CredentialExchange:
         """
         Receive a credential from an issuer.
@@ -759,7 +791,11 @@ class CredentialManager:
             try:
                 cred_ex_record = await (
                     V10CredentialExchange.retrieve_by_connection_and_thread(
-                        txn, connection_id, message._thread_id, for_update=True
+                        txn,
+                        connection_id,
+                        message._thread_id,
+                        role=V10CredentialExchange.ROLE_HOLDER,
+                        for_update=True,
                     )
                 )
             except StorageNotFoundError:
@@ -804,7 +840,11 @@ class CredentialManager:
 
         raw_cred_serde = cred_ex_record._raw_credential
         revoc_reg_def = None
-        ledger_exec_inst = self._profile.inject(IndyLedgerRequestsExecutor)
+        multitenant_mgr = self.profile.inject_or(BaseMultitenantManager)
+        if multitenant_mgr:
+            ledger_exec_inst = IndyLedgerRequestsExecutor(self.profile)
+        else:
+            ledger_exec_inst = self.profile.inject(IndyLedgerRequestsExecutor)
         ledger = (
             await ledger_exec_inst.get_ledger_for_identifier(
                 raw_cred_serde.de.cred_def_id,
@@ -944,8 +984,8 @@ class CredentialManager:
         return (cred_ex_record, credential_ack_message)
 
     async def receive_credential_ack(
-        self, message: CredentialAck, connection_id: str
-    ) -> V10CredentialExchange:
+        self, message: CredentialAck, connection_id: Optional[str]
+    ) -> Optional[V10CredentialExchange]:
         """
         Receive credential ack from holder.
 
@@ -957,7 +997,11 @@ class CredentialManager:
             try:
                 cred_ex_record = await (
                     V10CredentialExchange.retrieve_by_connection_and_thread(
-                        txn, connection_id, message._thread_id, for_update=True
+                        txn,
+                        connection_id,
+                        message._thread_id,
+                        role=V10CredentialExchange.ROLE_ISSUER,
+                        for_update=True,
                     )
                 )
             except StorageNotFoundError:
