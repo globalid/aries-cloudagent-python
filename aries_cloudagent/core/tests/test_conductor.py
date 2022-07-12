@@ -15,6 +15,7 @@ from ...connections.models.diddoc import (
     PublicKeyType,
     Service,
 )
+from ...core.event_bus import EventBus, MockEventBus
 from ...core.in_memory import InMemoryProfileManager
 from ...core.profile import ProfileManager
 from ...core.protocol_registry import ProtocolRegistry
@@ -27,6 +28,7 @@ from ...protocols.coordinate_mediation.v1_0.models.mediation_record import (
 )
 from ...resolver.did_resolver import DIDResolver, DIDResolverRegistry
 from ...multitenant.base import BaseMultitenantManager
+from ...multitenant.manager import MultitenantManager
 from ...storage.base import BaseStorage
 from ...storage.error import StorageNotFoundError
 from ...transport.inbound.message import InboundMessage
@@ -34,6 +36,7 @@ from ...transport.inbound.receipt import MessageReceipt
 from ...transport.outbound.base import OutboundDeliveryError
 from ...transport.outbound.manager import QueuedOutboundMessage
 from ...transport.outbound.message import OutboundMessage
+from ...transport.outbound.status import OutboundSendStatus
 from ...transport.wire_format import BaseWireFormat
 from ...transport.pack_format import PackWireFormat
 from ...utils.stats import Collector
@@ -92,6 +95,7 @@ class StubContextBuilder(ContextBuilder):
         context.injector.bind_instance(ProtocolRegistry, ProtocolRegistry())
         context.injector.bind_instance(BaseWireFormat, self.wire_format)
         context.injector.bind_instance(DIDResolver, DIDResolver(DIDResolverRegistry()))
+        context.injector.bind_instance(EventBus, MockEventBus())
         return context
 
 
@@ -120,7 +124,9 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
                 return_value=async_mock.MagicMock(value=f"v{__version__}")
             ),
         ):
-
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
             await conductor.setup()
 
             session = await conductor.root_profile.session()
@@ -162,7 +168,9 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
         ) as mock_logger, async_mock.patch.object(
             test_module, "AdminServer", async_mock.MagicMock()
         ) as mock_admin_server:
-
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
             mock_admin_server.side_effect = ValueError()
             with self.assertRaises(ValueError):
                 await conductor.setup()
@@ -184,7 +192,10 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
                 return_value=async_mock.MagicMock(value=f"v{__version__}")
             ),
         ):
-
+            mock_outbound_mgr.return_value.registered_transports = {}
+            mock_outbound_mgr.return_value.enqueue_message = async_mock.CoroutineMock()
+            mock_outbound_mgr.return_value.start = async_mock.CoroutineMock()
+            mock_outbound_mgr.return_value.stop = async_mock.CoroutineMock()
             await conductor.setup()
 
             mock_inbound_mgr.return_value.setup.assert_awaited_once()
@@ -223,6 +234,9 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
                 async_mock.MagicMock(state=QueuedOutboundMessage.STATE_ENCODE),
                 async_mock.MagicMock(state=QueuedOutboundMessage.STATE_DELIVER),
             ]
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
 
             await conductor.setup()
 
@@ -244,7 +258,13 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
         builder: ContextBuilder = StubContextBuilder(self.test_settings)
         conductor = test_module.Conductor(builder)
 
-        await conductor.setup()
+        with async_mock.patch.object(
+            test_module, "OutboundTransportManager", autospec=True
+        ) as mock_outbound_mgr:
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
+            await conductor.setup()
 
         with async_mock.patch.object(
             conductor.dispatcher, "queue_message", autospec=True
@@ -268,7 +288,13 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
         builder: ContextBuilder = StubContextBuilder(self.test_settings_admin)
         conductor = test_module.Conductor(builder)
 
-        await conductor.setup()
+        with async_mock.patch.object(
+            test_module, "OutboundTransportManager", autospec=True
+        ) as mock_outbound_mgr:
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
+            await conductor.setup()
 
         with async_mock.patch.object(
             conductor.dispatcher, "queue_message", autospec=True
@@ -294,8 +320,9 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
         conductor = test_module.Conductor(builder)
         test_to_verkey = "test-to-verkey"
         test_from_verkey = "test-from-verkey"
-
         await conductor.setup()
+
+        bus = conductor.root_profile.inject(EventBus)
 
         payload = "{}"
         message = OutboundMessage(payload=payload)
@@ -306,13 +333,17 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
 
         with async_mock.patch.object(
             conductor.inbound_transport_manager, "return_to_session"
-        ) as mock_return, async_mock.patch.object(
-            conductor, "queue_outbound", async_mock.CoroutineMock()
-        ) as mock_queue:
+        ) as mock_return:
             mock_return.return_value = True
-            await conductor.outbound_message_router(conductor.context, message)
+
+            status = await conductor.outbound_message_router(
+                conductor.root_profile, message
+            )
+            assert status == OutboundSendStatus.SENT_TO_SESSION
+            assert bus.events
+            assert bus.events[0][1].topic == status.topic
+            assert bus.events[0][1].payload == message
             mock_return.assert_called_once_with(message)
-            mock_queue.assert_not_awaited()
 
     async def test_outbound_message_handler_with_target(self):
         builder: ContextBuilder = StubContextBuilder(self.test_settings)
@@ -321,8 +352,12 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
         with async_mock.patch.object(
             test_module, "OutboundTransportManager", autospec=True
         ) as mock_outbound_mgr:
-
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
             await conductor.setup()
+
+            bus = conductor.root_profile.inject(EventBus)
 
             payload = "{}"
             target = ConnectionTarget(
@@ -330,10 +365,16 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
             )
             message = OutboundMessage(payload=payload, target=target)
 
-            await conductor.outbound_message_router(conductor.context, message)
-
+            status = await conductor.outbound_message_router(
+                conductor.root_profile, message
+            )
+            assert status == OutboundSendStatus.QUEUED_FOR_DELIVERY
+            assert bus.events
+            print(bus.events)
+            assert bus.events[0][1].topic == status.topic
+            assert bus.events[0][1].payload == message
             mock_outbound_mgr.return_value.enqueue_message.assert_called_once_with(
-                conductor.context, message
+                conductor.root_profile, message
             )
 
     async def test_outbound_message_handler_with_connection(self):
@@ -345,14 +386,26 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
         ) as mock_outbound_mgr, async_mock.patch.object(
             test_module, "ConnectionManager", autospec=True
         ) as conn_mgr:
-
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
             await conductor.setup()
+
+            bus = conductor.root_profile.inject(EventBus)
 
             payload = "{}"
             connection_id = "connection_id"
             message = OutboundMessage(payload=payload, connection_id=connection_id)
 
-            await conductor.outbound_message_router(conductor.root_profile, message)
+            status = await conductor.outbound_message_router(
+                conductor.root_profile, message
+            )
+
+            assert status == OutboundSendStatus.QUEUED_FOR_DELIVERY
+            assert bus.events
+            print(bus.events)
+            assert bus.events[0][1].topic == status.topic
+            assert bus.events[0][1].payload == message
 
             conn_mgr.return_value.get_connection_targets.assert_awaited_once_with(
                 connection_id=connection_id
@@ -373,24 +426,34 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
         with async_mock.patch.object(
             test_module, "OutboundTransportManager", autospec=True
         ) as mock_outbound_mgr:
-
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
             await conductor.setup()
+
+            bus = conductor.root_profile.inject(EventBus)
 
             payload = "{}"
             message = OutboundMessage(
                 payload=payload, reply_to_verkey=TestDIDs.test_verkey
             )
 
-            await conductor.outbound_message_router(
-                conductor.context,
+            status = await conductor.outbound_message_router(
+                conductor.root_profile,
                 message,
                 inbound=async_mock.MagicMock(
                     receipt=async_mock.MagicMock(recipient_verkey=TestDIDs.test_verkey)
                 ),
             )
 
+            assert status == OutboundSendStatus.QUEUED_FOR_DELIVERY
+            assert bus.events
+            print(bus.events)
+            assert bus.events[0][1].topic == status.topic
+            assert bus.events[0][1].payload == message
+
             mock_outbound_mgr.return_value.enqueue_message.assert_called_once_with(
-                conductor.context, message
+                conductor.root_profile, message
             )
 
     async def test_handle_nots(self):
@@ -402,7 +465,7 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
         ) as mock_outbound_mgr:
             mock_outbound_mgr.return_value = async_mock.MagicMock(
                 setup=async_mock.CoroutineMock(),
-                enqueue_message=async_mock.MagicMock(),
+                enqueue_message=async_mock.CoroutineMock(),
             )
 
             payload = "{}"
@@ -447,32 +510,20 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
             target=async_mock.MagicMock(endpoint="endpoint"),
             reply_to_verkey=TestDIDs.test_verkey,
         )
-
         await conductor.setup()
-        conductor.outbound_queue = async_mock.MagicMock(
-            enqueue_message=async_mock.CoroutineMock()
-        )
-        conductor.outbound_transport_manager = async_mock.MagicMock(
-            encode_outbound_message=async_mock.CoroutineMock(
-                return_value=encoded_outbound_message_mock
-            )
-        )
-
         await conductor.queue_outbound(conductor.root_profile, message)
-
-        conductor.outbound_transport_manager.encode_outbound_message.assert_called_once_with(
-            conductor.root_profile, message, message.target
-        )
-        conductor.outbound_queue.enqueue_message.assert_called_once_with(
-            encoded_outbound_message_mock.payload, message.target.endpoint
-        )
 
     async def test_handle_not_returned_ledger_x(self):
         builder: ContextBuilder = StubContextBuilder(self.test_settings_admin)
         conductor = test_module.Conductor(builder)
 
-        await conductor.setup()
-
+        with async_mock.patch.object(
+            test_module, "OutboundTransportManager", autospec=True
+        ) as mock_outbound_mgr:
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
+            await conductor.setup()
         with async_mock.patch.object(
             conductor.dispatcher, "run_task", async_mock.MagicMock()
         ) as mock_dispatch_run, async_mock.patch.object(
@@ -501,7 +552,13 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
         builder: ContextBuilder = StubContextBuilder(self.test_settings_admin)
         conductor = test_module.Conductor(builder)
 
-        await conductor.setup()
+        with async_mock.patch.object(
+            test_module, "OutboundTransportManager", autospec=True
+        ) as mock_outbound_mgr:
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
+            await conductor.setup()
 
         with async_mock.patch.object(
             test_module, "ConnectionManager", autospec=True
@@ -532,8 +589,13 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
         builder: ContextBuilder = StubContextBuilder(self.test_settings)
         builder.update_settings({"admin.enabled": "1"})
         conductor = test_module.Conductor(builder)
-
-        await conductor.setup()
+        with async_mock.patch.object(
+            test_module, "OutboundTransportManager", autospec=True
+        ) as mock_outbound_mgr:
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
+            await conductor.setup()
         admin = conductor.context.inject(BaseAdminServer)
         assert admin is conductor.admin_server
 
@@ -571,8 +633,13 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
             }
         )
         conductor = test_module.Conductor(builder)
-
-        await conductor.setup()
+        with async_mock.patch.object(
+            test_module, "OutboundTransportManager", autospec=True
+        ) as mock_outbound_mgr:
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
+            await conductor.setup()
         admin = conductor.context.inject(BaseAdminServer)
         assert admin is conductor.admin_server
 
@@ -622,7 +689,9 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
         ) as mock_outbound_mgr, async_mock.patch.object(
             test_module, "LoggingConfigurator", autospec=True
         ) as mock_logger:
-
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
             await conductor.setup()
 
     async def test_start_static(self):
@@ -638,7 +707,12 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
             async_mock.CoroutineMock(
                 return_value=async_mock.MagicMock(value=f"v{__version__}")
             ),
-        ):
+        ), async_mock.patch.object(
+            test_module, "OutboundTransportManager", autospec=True
+        ) as mock_outbound_mgr:
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
             await conductor.setup()
 
             session = await conductor.root_profile.session()
@@ -661,17 +735,22 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
             test_module, "ConnectionManager"
         ) as mock_mgr, async_mock.patch.object(
             test_module, "InboundTransportManager"
-        ) as mock_intx_mgr:
+        ) as mock_intx_mgr, async_mock.patch.object(
+            test_module, "OutboundTransportManager", autospec=True
+        ) as mock_outbound_mgr:
             mock_intx_mgr.return_value = async_mock.MagicMock(
                 setup=async_mock.CoroutineMock(),
                 start=async_mock.CoroutineMock(side_effect=KeyError("trouble")),
             )
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
             await conductor.setup()
             mock_mgr.return_value.create_static_connection = async_mock.CoroutineMock()
             with self.assertRaises(KeyError):
                 await conductor.start()
 
-    async def test_start_x_out(self):
+    async def test_start_x_out_a(self):
         builder: ContextBuilder = StubContextBuilder(self.test_settings)
         builder.update_settings({"debug.test_suite_endpoint": True})
         conductor = test_module.Conductor(builder)
@@ -684,6 +763,29 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
             mock_outx_mgr.return_value = async_mock.MagicMock(
                 setup=async_mock.CoroutineMock(),
                 start=async_mock.CoroutineMock(side_effect=KeyError("trouble")),
+                registered_transports={"test": async_mock.MagicMock(schemes=["http"])},
+            )
+            await conductor.setup()
+            mock_mgr.return_value.create_static_connection = async_mock.CoroutineMock()
+            with self.assertRaises(KeyError):
+                await conductor.start()
+
+    async def test_start_x_out_b(self):
+        builder: ContextBuilder = StubContextBuilder(self.test_settings)
+        builder.update_settings({"debug.test_suite_endpoint": True})
+        conductor = test_module.Conductor(builder)
+
+        with async_mock.patch.object(
+            test_module, "ConnectionManager"
+        ) as mock_mgr, async_mock.patch.object(
+            test_module, "OutboundTransportManager"
+        ) as mock_outx_mgr:
+            mock_outx_mgr.return_value = async_mock.MagicMock(
+                setup=async_mock.CoroutineMock(),
+                start=async_mock.CoroutineMock(side_effect=KeyError("trouble")),
+                stop=async_mock.CoroutineMock(),
+                registered_transports={},
+                enqueue_message=async_mock.CoroutineMock(),
             )
             await conductor.setup()
             mock_mgr.return_value.create_static_connection = async_mock.CoroutineMock()
@@ -708,7 +810,13 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
             },
         )
 
-        await conductor.setup()
+        with async_mock.patch.object(
+            test_module, "OutboundTransportManager", autospec=True
+        ) as mock_outbound_mgr:
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
+            await conductor.setup()
 
         with async_mock.patch.object(
             conductor.admin_server, "notify_fatal_error", async_mock.MagicMock()
@@ -738,7 +846,13 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
             },
         )
 
-        await conductor.setup()
+        with async_mock.patch.object(
+            test_module, "OutboundTransportManager", autospec=True
+        ) as mock_outbound_mgr:
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
+            await conductor.setup()
 
         with async_mock.patch.object(
             conductor.admin_server, "notify_fatal_error", async_mock.MagicMock()
@@ -757,8 +871,6 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
         )
         conductor = test_module.Conductor(builder)
 
-        await conductor.setup()
-
         with async_mock.patch(
             "sys.stdout", new=StringIO()
         ) as captured, async_mock.patch.object(
@@ -767,7 +879,12 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
             async_mock.CoroutineMock(
                 return_value=async_mock.MagicMock(value=f"v{__version__}")
             ),
-        ):
+        ), async_mock.patch.object(
+            test_module, "OutboundTransportManager", autospec=True
+        ) as mock_outbound_mgr:
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
             await conductor.setup()
 
             session = await conductor.root_profile.session()
@@ -788,7 +905,13 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
         builder.update_settings({"mediation.clear": True})
         conductor = test_module.Conductor(builder)
 
-        await conductor.setup()
+        with async_mock.patch.object(
+            test_module, "OutboundTransportManager", autospec=True
+        ) as mock_outbound_mgr:
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
+            await conductor.setup()
 
         with async_mock.patch.object(
             test_module,
@@ -812,7 +935,13 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
         builder.update_settings({"mediation.default_id": "test-id"})
         conductor = test_module.Conductor(builder)
 
-        await conductor.setup()
+        with async_mock.patch.object(
+            test_module, "OutboundTransportManager", autospec=True
+        ) as mock_outbound_mgr:
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
+            await conductor.setup()
 
         with async_mock.patch.object(
             test_module,
@@ -846,7 +975,13 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
         builder.update_settings({"mediation.default_id": "test-id"})
         conductor = test_module.Conductor(builder)
 
-        await conductor.setup()
+        with async_mock.patch.object(
+            test_module, "OutboundTransportManager", autospec=True
+        ) as mock_outbound_mgr:
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
+            await conductor.setup()
 
         with async_mock.patch.object(
             MediationRecord,
@@ -877,7 +1012,13 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
         test_endpoint = "http://example"
         test_attempts = 2
 
-        await conductor.setup()
+        with async_mock.patch.object(
+            test_module, "OutboundTransportManager", autospec=True
+        ) as mock_outbound_mgr:
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
+            await conductor.setup()
         with async_mock.patch.object(
             conductor.outbound_transport_manager, "enqueue_webhook"
         ) as mock_enqueue:
@@ -914,19 +1055,26 @@ class TestConductor(AsyncTestCase, Config, TestDIDs):
         ) as mock_outbound_mgr, async_mock.patch.object(
             test_module, "LoggingConfigurator", autospec=True
         ) as mock_logger:
-
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
             await conductor.setup()
             multitenant_mgr = conductor.context.inject(BaseMultitenantManager)
+            assert isinstance(multitenant_mgr, MultitenantManager)
 
-            multitenant_mgr._instances = {
-                "test1": async_mock.MagicMock(close=async_mock.CoroutineMock()),
-                "test2": async_mock.MagicMock(close=async_mock.CoroutineMock()),
-            }
+            multitenant_mgr._profiles.put(
+                "test1",
+                async_mock.MagicMock(close=async_mock.CoroutineMock()),
+            )
+            multitenant_mgr._profiles.put(
+                "test2",
+                async_mock.MagicMock(close=async_mock.CoroutineMock()),
+            )
 
             await conductor.stop()
 
-            multitenant_mgr._instances["test1"].close.assert_called_once_with()
-            multitenant_mgr._instances["test2"].close.assert_called_once_with()
+            multitenant_mgr._profiles.profiles["test1"].close.assert_called_once_with()
+            multitenant_mgr._profiles.profiles["test2"].close.assert_called_once_with()
 
 
 def get_invite_store_mock(
@@ -968,7 +1116,13 @@ class TestConductorMediationSetup(AsyncTestCase, Config):
         conductor = test_module.Conductor(
             self.__get_mediator_config("test-invite", True)
         )
-        await conductor.setup()
+        with async_mock.patch.object(
+            test_module, "OutboundTransportManager", autospec=True
+        ) as mock_outbound_mgr:
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
+            await conductor.setup()
 
         mock_conn_record = async_mock.MagicMock()
 
@@ -1006,7 +1160,13 @@ class TestConductorMediationSetup(AsyncTestCase, Config):
         conductor = test_module.Conductor(
             self.__get_mediator_config("test-invite", False)
         )
-        await conductor.setup()
+        with async_mock.patch.object(
+            test_module, "OutboundTransportManager", autospec=True
+        ) as mock_outbound_mgr:
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
+            await conductor.setup()
 
         conn_record = ConnRecord(
             invitation_key="3Dn1SJNPaCXcvvJvSbsFWP2xaCjMom3can8CQNhWrTRx",
@@ -1055,7 +1215,13 @@ class TestConductorMediationSetup(AsyncTestCase, Config):
         conductor = test_module.Conductor(
             self.__get_mediator_config(invite_string, True)
         )
-        await conductor.setup()
+        with async_mock.patch.object(
+            test_module, "OutboundTransportManager", autospec=True
+        ) as mock_outbound_mgr:
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
+            await conductor.setup()
         mock_conn_record = async_mock.MagicMock()
         mocked_store = get_invite_store_mock(invite_string)
         patched_invite_store.return_value = mocked_store
@@ -1102,7 +1268,13 @@ class TestConductorMediationSetup(AsyncTestCase, Config):
         conductor = test_module.Conductor(
             self.__get_mediator_config(invite_string, True)
         )
-        await conductor.setup()
+        with async_mock.patch.object(
+            test_module, "OutboundTransportManager", autospec=True
+        ) as mock_outbound_mgr:
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
+            await conductor.setup()
 
         invite_store_mock = get_invite_store_mock(invite_string, True)
         patched_invite_store.return_value = invite_store_mock
@@ -1137,7 +1309,13 @@ class TestConductorMediationSetup(AsyncTestCase, Config):
         conductor = test_module.Conductor(
             self.__get_mediator_config("test-invite", True)
         )
-        await conductor.setup()
+        with async_mock.patch.object(
+            test_module, "OutboundTransportManager", autospec=True
+        ) as mock_outbound_mgr:
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
+            await conductor.setup()
 
         with async_mock.patch.object(
             test_module.ConnectionInvitation,
@@ -1169,7 +1347,12 @@ class TestConductorMediationSetup(AsyncTestCase, Config):
             async_mock.CoroutineMock(),
         ) as mock_multiple_genesis_load, async_mock.patch.object(
             test_module, "get_genesis_transactions", async_mock.CoroutineMock()
-        ) as mock_genesis_load:
+        ) as mock_genesis_load, async_mock.patch.object(
+            test_module, "OutboundTransportManager", autospec=True
+        ) as mock_outbound_mgr:
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
             await conductor.setup()
             mock_multiple_genesis_load.assert_called_once()
             mock_genesis_load.assert_called_once()
@@ -1181,7 +1364,12 @@ class TestConductorMediationSetup(AsyncTestCase, Config):
 
         with async_mock.patch.object(
             test_module, "get_genesis_transactions", async_mock.CoroutineMock()
-        ) as mock_genesis_load:
+        ) as mock_genesis_load, async_mock.patch.object(
+            test_module, "OutboundTransportManager", autospec=True
+        ) as mock_outbound_mgr:
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
             await conductor.setup()
             mock_genesis_load.assert_called_once()
 
@@ -1202,7 +1390,9 @@ class TestConductorMediationSetup(AsyncTestCase, Config):
                 return_value=async_mock.MagicMock(value=f"v0.6.0")
             ),
         ):
-
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
             await conductor.setup()
 
             session = await conductor.root_profile.session()
@@ -1237,7 +1427,9 @@ class TestConductorMediationSetup(AsyncTestCase, Config):
             "find_record",
             async_mock.CoroutineMock(side_effect=StorageNotFoundError()),
         ):
-
+            mock_outbound_mgr.return_value.registered_transports = {
+                "test": async_mock.MagicMock(schemes=["http"])
+            }
             await conductor.setup()
 
             session = await conductor.root_profile.session()

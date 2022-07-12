@@ -28,6 +28,7 @@ from ...ledger.multiple_ledger.ledger_requests_executor import (
     GET_CRED_DEF,
     IndyLedgerRequestsExecutor,
 )
+from ...multitenant.base import BaseMultitenantManager
 from ...protocols.endorse_transaction.v1_0.manager import (
     TransactionManager,
     TransactionManagerError,
@@ -184,6 +185,23 @@ async def credential_definitions_send_credential_definition(request: web.BaseReq
     support_revocation = bool(body.get("support_revocation"))
     tag = body.get("tag")
     rev_reg_size = body.get("revocation_registry_size")
+
+    tag_query = {"schema_id": schema_id}
+    async with profile.session() as session:
+        storage = session.inject(BaseStorage)
+        found = await storage.find_all_records(
+            type_filter=CRED_DEF_SENT_RECORD_TYPE,
+            tag_query=tag_query,
+        )
+        if 0 < len(found):
+            # need to check the 'tag' value
+            for record in found:
+                cred_def_id = record.value
+                cred_def_id_parts = cred_def_id.split(":")
+                if tag == cred_def_id_parts[4]:
+                    raise web.HTTPBadRequest(
+                        reason=f"Cred def for {schema_id} {tag} already exists"
+                    )
 
     # check if we need to endorse
     if is_author_role(context.profile):
@@ -371,7 +389,11 @@ async def credential_definitions_get_credential_definition(request: web.BaseRequ
     cred_def_id = request.match_info["cred_def_id"]
 
     async with context.profile.session() as session:
-        ledger_exec_inst = session.inject(IndyLedgerRequestsExecutor)
+        multitenant_mgr = session.inject_or(BaseMultitenantManager)
+        if multitenant_mgr:
+            ledger_exec_inst = IndyLedgerRequestsExecutor(context.profile)
+        else:
+            ledger_exec_inst = session.inject(IndyLedgerRequestsExecutor)
     ledger_id, ledger = await ledger_exec_inst.get_ledger_for_identifier(
         cred_def_id,
         txn_record_type=GET_CRED_DEF,
@@ -416,7 +438,11 @@ async def credential_definitions_fix_cred_def_wallet_record(request: web.BaseReq
 
     async with context.profile.session() as session:
         storage = session.inject(BaseStorage)
-        ledger_exec_inst = session.inject(IndyLedgerRequestsExecutor)
+        multitenant_mgr = session.inject_or(BaseMultitenantManager)
+        if multitenant_mgr:
+            ledger_exec_inst = IndyLedgerRequestsExecutor(context.profile)
+        else:
+            ledger_exec_inst = session.inject(IndyLedgerRequestsExecutor)
     ledger_id, ledger = await ledger_exec_inst.get_ledger_for_identifier(
         cred_def_id,
         txn_record_type=GET_CRED_DEF,

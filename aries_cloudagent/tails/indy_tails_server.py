@@ -1,11 +1,17 @@
 """Indy tails server interface class."""
 
 from typing import Tuple
+import logging
 
+from ..config.injection_context import InjectionContext
+from ..ledger.multiple_ledger.base_manager import BaseMultipleLedgerManager
 from ..utils.http import put_file, PutError
 
 from .base import BaseTailsServer
 from .error import TailsServerNotConfiguredError
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class IndyTailsServer(BaseTailsServer):
@@ -13,7 +19,7 @@ class IndyTailsServer(BaseTailsServer):
 
     async def upload_tails_file(
         self,
-        context,
+        context: InjectionContext,
         rev_reg_id: str,
         tails_file_path: str,
         interval: float = 1.0,
@@ -30,9 +36,22 @@ class IndyTailsServer(BaseTailsServer):
             backoff: exponential backoff in retry interval
             max_attempts: maximum number of attempts to make
         """
-
-        genesis_transactions = context.settings.get("ledger.genesis_transactions")
         tails_server_upload_url = context.settings.get("tails_server_upload_url")
+        genesis_transactions = context.settings.get("ledger.genesis_transactions")
+
+        if not genesis_transactions:
+            ledger_manager = context.injector.inject(BaseMultipleLedgerManager)
+            write_ledgers = await ledger_manager.get_write_ledger()
+            LOGGER.debug(f"write_ledgers = {write_ledgers}")
+            pool = write_ledgers[1].pool
+            LOGGER.debug(f"write_ledger pool = {pool}")
+
+            genesis_transactions = pool.genesis_txns
+
+        if not genesis_transactions:
+            raise TailsServerNotConfiguredError(
+                "no genesis_transactions for writable ledger"
+            )
 
         if not tails_server_upload_url:
             raise TailsServerNotConfiguredError(

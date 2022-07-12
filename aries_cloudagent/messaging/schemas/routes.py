@@ -28,6 +28,7 @@ from ...ledger.multiple_ledger.ledger_requests_executor import (
     GET_SCHEMA,
     IndyLedgerRequestsExecutor,
 )
+from ...multitenant.base import BaseMultitenantManager
 from ...protocols.endorse_transaction.v1_0.manager import (
     TransactionManager,
     TransactionManagerError,
@@ -182,6 +183,18 @@ async def schemas_send_schema(request: web.BaseRequest):
     schema_name = body.get("schema_name")
     schema_version = body.get("schema_version")
     attributes = body.get("attributes")
+
+    tag_query = {"schema_name": schema_name, "schema_version": schema_version}
+    async with profile.session() as session:
+        storage = session.inject(BaseStorage)
+        found = await storage.find_all_records(
+            type_filter=SCHEMA_SENT_RECORD_TYPE,
+            tag_query=tag_query,
+        )
+        if 0 < len(found):
+            raise web.HTTPBadRequest(
+                reason=f"Schema {schema_name} {schema_version} already exists"
+            )
 
     # check if we need to endorse
     if is_author_role(context.profile):
@@ -355,7 +368,11 @@ async def schemas_get_schema(request: web.BaseRequest):
     schema_id = request.match_info["schema_id"]
 
     async with context.profile.session() as session:
-        ledger_exec_inst = session.inject(IndyLedgerRequestsExecutor)
+        multitenant_mgr = session.inject_or(BaseMultitenantManager)
+        if multitenant_mgr:
+            ledger_exec_inst = IndyLedgerRequestsExecutor(context.profile)
+        else:
+            ledger_exec_inst = session.inject(IndyLedgerRequestsExecutor)
     ledger_id, ledger = await ledger_exec_inst.get_ledger_for_identifier(
         schema_id,
         txn_record_type=GET_SCHEMA,
@@ -400,7 +417,11 @@ async def schemas_fix_schema_wallet_record(request: web.BaseRequest):
 
     async with profile.session() as session:
         storage = session.inject(BaseStorage)
-        ledger_exec_inst = session.inject(IndyLedgerRequestsExecutor)
+        multitenant_mgr = session.inject_or(BaseMultitenantManager)
+        if multitenant_mgr:
+            ledger_exec_inst = IndyLedgerRequestsExecutor(context.profile)
+        else:
+            ledger_exec_inst = session.inject(IndyLedgerRequestsExecutor)
     ledger_id, ledger = await ledger_exec_inst.get_ledger_for_identifier(
         schema_id,
         txn_record_type=GET_SCHEMA,
