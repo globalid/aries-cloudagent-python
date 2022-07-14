@@ -1,5 +1,5 @@
 """Http Transport classes and functions."""
-
+import json
 import logging
 
 from aiohttp import web
@@ -29,6 +29,10 @@ class HttpTransport(BaseInboundTransport):
         self.host = host
         self.port = port
         self.site: web.BaseSite = None
+        self.logger = logging.getLogger(__name__)
+        print("!!!!!!!!!!!!!!!!!!! Finished initializing HTTP TRANSPORT")
+        LOGGER.info("!!!!!!!!!!!!!!!!!!! Finished initializing HTTP TRANSPORT")
+        self.logger.info("!!!!!!!!!!!!!!!!!!! Finished initializing HTTP TRANSPORT")
 
     async def make_application(self) -> web.Application:
         """Construct the aiohttp application."""
@@ -48,6 +52,7 @@ class HttpTransport(BaseInboundTransport):
             InboundTransportSetupError: If there was an error starting the webserver
 
         """
+        LOGGER.info("Starting HTTP INBOUND TRANSPORT")
         app = await self.make_application()
         runner = web.AppRunner(app)
         await runner.setup()
@@ -82,6 +87,9 @@ class HttpTransport(BaseInboundTransport):
             body = await request.text()
         else:
             body = await request.read()
+
+        print("!!!!!!!!!!!!!!!!!!! INBOUND MESSAGE print %r" % (str(body)))
+        print("!!!!!!!!!!!!!!!!!!! INBOUND MESSAGE host: %r, remote: %r" % (request.host, request.remote))
 
         client_info = {"host": request.host, "remote": request.remote}
 
@@ -134,6 +142,7 @@ class HttpTransport(BaseInboundTransport):
             The web response
 
         """
+        LOGGER.info("invite message handler with request %r" % (str(request)))
         if request.query.get("c_i"):
             return web.Response(
                 text="You have received a connection invitation. To accept the "
