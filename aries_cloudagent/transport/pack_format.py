@@ -213,6 +213,7 @@ class PackWireFormat(BaseWireFormat):
         try:
             message_dict = json.loads(message_body)
             protected = json.loads(b64_to_str(message_dict["protected"], urlsafe=True))
+            print("pack_format: got protected: %r" % str(protected))
             recipients = protected["recipients"]
 
             recipient_keys = [recipient["header"]["kid"] for recipient in recipients]

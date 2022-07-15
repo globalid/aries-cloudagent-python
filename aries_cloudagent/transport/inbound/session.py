@@ -203,8 +203,12 @@ class InboundSession:
 
     async def parse_inbound(self, payload_enc: Union[str, bytes]) -> InboundMessage:
         """Convert a message payload and to an inbound message."""
+        print("Session :: parse_inbound :: profile.session()")
         session = await self.profile.session()
+        print("Session :: parse_inbound :: profile.session() DONE")
+        print("Session :: parse_inbound :: wire_format.parse_message")
         payload, receipt = await self.wire_format.parse_message(session, payload_enc)
+        print("Session :: parse_inbound :: wire_format.parse_message DONE")
         return InboundMessage(
             payload,
             receipt,
@@ -218,7 +222,9 @@ class InboundSession:
             await self.handle_relay_context(payload_enc)
             self._check_relay_context = False
 
+        print("Session :: parse_inbound")
         message = await self.parse_inbound(payload_enc)
+        print("Session :: parse_inbound DONE")
         self.receive_inbound(message)
         return message
 
