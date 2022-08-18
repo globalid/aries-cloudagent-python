@@ -3,7 +3,7 @@ name: globalId
 on:
   push:
     branches:
-      - globalid-release
+      - globalid-release*
       - feat-*
     tags:
       - v*
