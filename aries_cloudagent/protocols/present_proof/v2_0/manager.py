@@ -326,15 +326,30 @@ class V20PresManager:
             else None
         )
 
+        LOGGER.warn(
+            "PRES EX\noob_record: %s\n connection_record: %s\nconnection_id: %s",
+            oob_record,
+            connection_record,
+            connection_id
+        )
+
         async with self._profile.session() as session:
-            pres_ex_record = await V20PresExRecord.retrieve_by_tag_filter(
-                session,
-                {"thread_id": thread_id},
-                {
-                    "role": V20PresExRecord.ROLE_VERIFIER,
-                    "connection_id": connection_id,
-                },
-            )
+            try:
+                pres_ex_record = await V20PresExRecord.retrieve_by_tag_filter(
+                    session,
+                    {"thread_id": thread_id},
+                    {
+                        "role": V20PresExRecord.ROLE_VERIFIER,
+                        "connection_id": connection_id,
+                    },
+                )
+            except BaseError as err:
+                LOGGER.exception(err)
+                LOGGER.warn("PRES EX NOT FOUND, trying without conn filter")
+                pres_ex_record = await V20PresExRecord.retrieve_by_tag_filter(
+                    session,
+                    {"thread_id": thread_id},
+                )
 
         # Save connection id (if it wasn't already present)
         if connection_record:
