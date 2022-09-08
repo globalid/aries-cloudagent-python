@@ -350,6 +350,7 @@ class V20PresManager:
                     session,
                     {"thread_id": thread_id},
                 )
+                LOGGER.warn("PRES EX FOUND: %s", pres_ex_record)
 
         # Save connection id (if it wasn't already present)
         if connection_record:
