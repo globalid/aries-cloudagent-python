@@ -309,16 +309,25 @@ class V20PresManager:
             if conn_record is None
             else {"connection_id": conn_record.connection_id}
         )
+
+        LOGGER.warn(
+            "PRES EX\nconnection_filter: %s",
+            conn_id_filter
+        )
+
         async with self._profile.session() as session:
             try:
                 pres_ex_record = await V20PresExRecord.retrieve_by_tag_filter(
                     session, {"thread_id": thread_id}, conn_id_filter
                 )
             except StorageNotFoundError:
+                LOGGER.warn("PRES EX NOT FOUND, trying without conn filter")
                 # Proof req not bound to any connection: requests_attach in OOB msg
                 pres_ex_record = await V20PresExRecord.retrieve_by_tag_filter(
                     session, {"thread_id": thread_id}, None
                 )
+
+        LOGGER.warn("PRES EX FOUND: %s", pres_ex_record)
 
         input_formats = message.formats
 
