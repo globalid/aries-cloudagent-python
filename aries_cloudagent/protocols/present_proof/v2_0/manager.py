@@ -7,6 +7,7 @@ from typing import Optional, Tuple
 from ...out_of_band.v1_0.models.oob_record import OobRecord
 from ....connections.models.conn_record import ConnRecord
 from ....core.error import BaseError
+from ....storage.error import StorageNotFoundError
 from ....core.profile import Profile
 from ....messaging.responder import BaseResponder
 
@@ -327,14 +328,25 @@ class V20PresManager:
         )
 
         async with self._profile.session() as session:
-            pres_ex_record = await V20PresExRecord.retrieve_by_tag_filter(
-                session,
-                {"thread_id": thread_id},
-                {
-                    "role": V20PresExRecord.ROLE_VERIFIER,
-                    "connection_id": connection_id,
-                },
-            )
+            try:
+                pres_ex_record = await V20PresExRecord.retrieve_by_tag_filter(
+                    session,
+                    {"thread_id": thread_id},
+                    {
+                        "role": V20PresExRecord.ROLE_VERIFIER,
+                        "connection_id": connection_id,
+                    },
+                )
+
+            # TODO: this is temporary hack to support not-standard
+            # flow we use. This catch should be removed.
+            except StorageNotFoundError as err:
+                LOGGER.exception(err)
+                pres_ex_record = await V20PresExRecord.retrieve_by_tag_filter(
+                    session,
+                    {"thread_id": thread_id},
+                )
+            # // TODO
 
         # Save connection id (if it wasn't already present)
         if connection_record:
