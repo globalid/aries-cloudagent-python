@@ -1,7 +1,7 @@
 FROM python:3.10-slim as builder
 ENV ENABLE_PTVSD 0
 
-RUN apt-get update && apt-get upgrade -y && apt-get install -y curl unzip
+RUN apt-get update && apt-get upgrade -y
 
 WORKDIR /cloudagent
 ADD aries_cloudagent ./aries_cloudagent
@@ -16,10 +16,6 @@ RUN pip install --upgrade pip && \
     -r requirements.bbs.txt \
     -r requirements.globalid.txt \
     -e .
-
-RUN curl -L https://github.com/bcgov/aries-acapy-plugin-redis-events/archive/refs/heads/master.zip -o redis-event-plugin-master.zip && unzip redis-event-plugin-master.zip
-RUN cd aries-acapy-plugin-redis-events-master && pip install .
-
 
 RUN useradd user
 USER user
