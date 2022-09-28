@@ -1,12 +1,21 @@
 version: "3"
 services:
-      
+ 
+  caddy:
+    image: caddy:2.5.1-alpine
+    restart: unless-stopped
+    command: caddy reverse-proxy --from https://localhost:3001 --to http://agent:3001
+    ports:
+      - 3002:3001
+    networks:
+      - app-network
+
   agent:
     build:
       context: ../
       dockerfile: ./docker/Dockerfile.globalid
     environment:
-      - ACAPY_ENDPOINT=http://172.16.48.145:3000
+      - ACAPY_ENDPOINT=http://localhost:3000
       - ACAPY_NO_LEDGER=true
       - ACAPY_ADMIN_INSECURE_MODE=true
       - ACAPY_WALLET_TYPE=askar
@@ -27,16 +36,26 @@ services:
       - ACAPY_AUTO_RESPOND_CREDENTIAL_REQUEST=true
       - ACAPY_EMIT_NEW_DIDCOMM_PREFIX=true
       - ACAPY_PRESERVE_EXCHANGE_RECORDS=true
+      - ACAPY_GENESIS_URL=https://raw.githubusercontent.com/Indicio-tech/indicio-network/master/genesis_files/pool_transactions_testnet_genesis
+      - RUST_LOG=trace,indy::=trace
       - RUST_BACKTRACE=1
-    command: ["start", "--admin", "0.0.0.0", "3001", "-it", "http", "0.0.0.0", "3000", "-ot", "http"]
+    # volumes:
+    #   - sqlite-db:/home/user/.aries_cloudagent:consistent
+    command: >
+      start --admin 0.0.0.0 3001 -it http 0.0.0.0 3000 -ot http
+        --plugin acapy_cache_redis.v0_1
+        --plugin-config-value redis_cache.connection="redis://redis-host:6379/0"
+    ports:
+      - 3001:3001
+    depends_on:
+      redis-host:
+        condition: service_healthy
     networks:
       - app-network
-    ports: 
-      - "3000:3000"
-      - "3001:3001"
 
   postgres:
-    image: postgres:12
+    image: postgres:9.5
+#    user: "501:20"
     hostname: postgres
     restart: unless-stopped
     ports: # Uncomment to access postgres outside of containers
@@ -44,6 +63,36 @@ services:
     environment:
       POSTGRES_USER: root
       POSTGRES_PASSWORD: root
+      PGDATA: /var/lib/postgresql/data/pgdata
+    networks:
+      - app-network
+    volumes:
+      - postgres-db:/var/lib/postgresql/data:consistent
+#      - ./postgres-db:/var/lib/postgresql/data:consistent
+
+  redis-host:
+    image: "redis:alpine"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+    ports:
+      - "6379:6379"
+    # volumes:
+    #   - ./redis-data:/var/lib/redis
+    #   - ./redis.conf:/etc/redis/redis.conf:ro,z
+    environment:
+      - REDIS_REPLICATION_MODE=master
+    networks:
+      - app-network
+
+  redis-commander:
+    container_name: redis-commander
+    hostname: redis-commander
+    image: ghcr.io/joeferner/redis-commander:latest
+    restart: always
+    environment:
+      - REDIS_HOSTS=local:redis-host:6379
+    ports:
+      - "8081:8081"
     networks:
       - app-network
 
@@ -52,4 +101,6 @@ networks:
   app-network:
     driver: bridge
 
-
+volumes:
+  postgres-db:
+  # sqlite-db:
