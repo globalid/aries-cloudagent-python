@@ -327,7 +327,7 @@ creds_with_no_id = [
             "@context": [
                 "https://www.w3.org/2018/credentials/v1",
                 "https://w3id.org/citizenship/v1",
-                "https://w3id.org/security/bbs/v1",
+                "https://w3c-ccg.github.io/vc-di-bbs/contexts/v1",
             ],
             "type": ["VerifiableCredential", "PermanentResidentCard"],
             "issuer": "did:key:zUC72Q7XD4PE4CrMiDVXuvZng3sBvMmaGgNeTUJuzavH2BS7ThbHL9FhsZM9QYY5fqAQ4MB8M9oudz3tfuaX36Ajr97QRW7LBt6WWmrtESe6Bs5NYzFtLWEmeVtvRYVAgjFcJSa",
@@ -366,7 +366,7 @@ creds_with_no_id = [
             "@context": [
                 "https://www.w3.org/2018/credentials/v1",
                 "https://w3id.org/citizenship/v1",
-                "https://w3id.org/security/bbs/v1",
+                "https://w3c-ccg.github.io/vc-di-bbs/contexts/v1",
             ],
             "type": ["VerifiableCredential", "PermanentResidentCard"],
             "issuer": "did:key:zUC72Q7XD4PE4CrMiDVXuvZng3sBvMmaGgNeTUJuzavH2BS7ThbHL9FhsZM9QYY5fqAQ4MB8M9oudz3tfuaX36Ajr97QRW7LBt6WWmrtESe6Bs5NYzFtLWEmeVtvRYVAgjFcJSa",
@@ -408,7 +408,7 @@ bbs_signed_cred_no_credsubjectid = [
             "@context": [
                 "https://www.w3.org/2018/credentials/v1",
                 "https://w3id.org/citizenship/v1",
-                "https://w3id.org/security/bbs/v1",
+                "https://w3c-ccg.github.io/vc-di-bbs/contexts/v1",
             ],
             "id": "https://issuer.oidp.uscis.gov/credentials/83627465",
             "type": ["VerifiableCredential", "PermanentResidentCard"],
@@ -449,7 +449,7 @@ bbs_signed_cred_no_credsubjectid = [
             "@context": [
                 "https://www.w3.org/2018/credentials/v1",
                 "https://w3id.org/citizenship/v1",
-                "https://w3id.org/security/bbs/v1",
+                "https://w3c-ccg.github.io/vc-di-bbs/contexts/v1",
             ],
             "credentialSubject": {
                 "birthCountry": "Bahamas",
@@ -480,7 +480,7 @@ bbs_signed_cred_no_credsubjectid = [
             "@context": [
                 "https://www.w3.org/2018/credentials/v1",
                 "https://www.w3.org/2018/credentials/examples/v1",
-                "https://w3id.org/security/bbs/v1",
+                "https://w3c-ccg.github.io/vc-di-bbs/contexts/v1",
             ],
             "id": "https://example.gov/credentials/3732",
             "type": ["VerifiableCredential", "UniversityDegreeCredential"],
@@ -515,7 +515,7 @@ bbs_signed_cred_credsubjectid = [
             "@context": [
                 "https://www.w3.org/2018/credentials/v1",
                 "https://w3id.org/citizenship/v1",
-                "https://w3id.org/security/bbs/v1",
+                "https://w3c-ccg.github.io/vc-di-bbs/contexts/v1",
             ],
             "id": "https://issuer.oidp.uscis.gov/credentials/83627465",
             "type": ["VerifiableCredential", "PermanentResidentCard"],
@@ -557,7 +557,7 @@ bbs_signed_cred_credsubjectid = [
             "@context": [
                 "https://www.w3.org/2018/credentials/v1",
                 "https://www.w3.org/2018/credentials/examples/v1",
-                "https://w3id.org/security/bbs/v1",
+                "https://w3c-ccg.github.io/vc-di-bbs/contexts/v1",
             ],
             "id": "https://example.gov/credentials/3732",
             "type": ["VerifiableCredential", "UniversityDegreeCredential"],
@@ -593,7 +593,7 @@ bbs_bls_number_filter_creds = [
             "@context": [
                 "https://www.w3.org/2018/credentials/v1",
                 "https://w3id.org/citizenship/v1",
-                "https://w3id.org/security/bbs/v1",
+                "https://w3c-ccg.github.io/vc-di-bbs/contexts/v1",
             ],
             "id": "https://issuer.oidp.uscis.gov/credentials/83627465",
             "type": ["VerifiableCredential", "PermanentResidentCard"],
@@ -636,7 +636,7 @@ bbs_bls_number_filter_creds = [
             "@context": [
                 "https://www.w3.org/2018/credentials/v1",
                 "https://w3id.org/citizenship/v1",
-                "https://w3id.org/security/bbs/v1",
+                "https://w3c-ccg.github.io/vc-di-bbs/contexts/v1",
             ],
             "id": "https://issuer.oidp.uscis.gov/credentials/83627466",
             "type": ["VerifiableCredential", "PermanentResidentCard"],
@@ -679,7 +679,7 @@ bbs_bls_number_filter_creds = [
             "@context": [
                 "https://www.w3.org/2018/credentials/v1",
                 "https://w3id.org/citizenship/v1",
-                "https://w3id.org/security/bbs/v1",
+                "https://w3c-ccg.github.io/vc-di-bbs/contexts/v1",
             ],
             "id": "https://issuer.oidp.uscis.gov/credentials/83627467",
             "type": ["VerifiableCredential", "PermanentResidentCard"],
@@ -850,7 +850,7 @@ CRED_LIST = [
         "@context": [
             "https://www.w3.org/2018/credentials/v1",
             "https://w3id.org/citizenship/v1",
-            "https://w3id.org/security/bbs/v1",
+            "https://w3c-ccg.github.io/vc-di-bbs/contexts/v1",
         ],
         "id": "https://issuer.oidp.uscis.gov/credentials/83627465",
         "type": ["VerifiableCredential", "PermanentResidentCard"],
@@ -886,7 +886,7 @@ CRED_LIST = [
         "@context": [
             "https://www.w3.org/2018/credentials/v1",
             "https://w3id.org/citizenship/v1",
-            "https://w3id.org/security/bbs/v1",
+            "https://w3c-ccg.github.io/vc-di-bbs/contexts/v1",
         ],
         "id": "https://issuer.oidp.uscis.gov/credentials/83627466",
         "type": ["VerifiableCredential", "PermanentResidentCard"],
@@ -922,7 +922,7 @@ CRED_LIST = [
         "@context": [
             "https://www.w3.org/2018/credentials/v1",
             "https://w3id.org/citizenship/v1",
-            "https://w3id.org/security/bbs/v1",
+            "https://w3c-ccg.github.io/vc-di-bbs/contexts/v1",
         ],
         "id": "https://issuer.oidp.uscis.gov/credentials/83627467",
         "type": ["VerifiableCredential", "PermanentResidentCard"],
@@ -958,7 +958,7 @@ CRED_LIST = [
         "@context": [
             "https://www.w3.org/2018/credentials/v1",
             "https://w3id.org/citizenship/v1",
-            "https://w3id.org/security/bbs/v1",
+            "https://w3c-ccg.github.io/vc-di-bbs/contexts/v1",
         ],
         "id": "https://issuer.oidp.uscis.gov/credentials/83627468",
         "type": ["VerifiableCredential", "PermanentResidentCard"],
@@ -994,7 +994,7 @@ CRED_LIST = [
         "@context": [
             "https://www.w3.org/2018/credentials/v1",
             "https://w3id.org/citizenship/v1",
-            "https://w3id.org/security/bbs/v1",
+            "https://w3c-ccg.github.io/vc-di-bbs/contexts/v1",
         ],
         "id": "https://issuer.oidp.uscis.gov/credentials/83627469",
         "type": ["VerifiableCredential", "PermanentResidentCard"],
@@ -1030,7 +1030,7 @@ CRED_LIST = [
         "@context": [
             "https://www.w3.org/2018/credentials/v1",
             "https://w3id.org/citizenship/v1",
-            "https://w3id.org/security/bbs/v1",
+            "https://w3c-ccg.github.io/vc-di-bbs/contexts/v1",
         ],
         "id": "https://issuer.oidp.uscis.gov/credentials/83627470",
         "type": ["VerifiableCredential", "PermanentResidentCard"],
@@ -1749,7 +1749,7 @@ pres_exch_datetime_maximum_met = """
 TEST_CRED_DICT = {
     "@context": [
         "https://www.w3.org/2018/credentials/v1",
-        "https://w3id.org/security/bbs/v1",
+        "https://w3c-ccg.github.io/vc-di-bbs/contexts/v1",
         {
             "MedicalPass": {
                 "@id": "https://www.vdel.com/MedicalPass",
@@ -1798,7 +1798,7 @@ TEST_CRED_DICT = {
 TEST_CRED_WILDCARD = {
     "@context": [
         "https://www.w3.org/2018/credentials/v1",
-        "https://w3id.org/security/bbs/v1",
+        "https://w3c-ccg.github.io/vc-di-bbs/contexts/v1",
         {
             "LabReport": {
                 "@id": "https://www.vdel.com/LabReport",

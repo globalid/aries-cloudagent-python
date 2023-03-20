@@ -40,7 +40,7 @@ DOC_SIGNED = {
 DOC_TEMPLATE_BBS = {
     "@context": [
         "https://w3id.org/security/v2",
-        "https://w3id.org/security/bbs/v1",
+        "https://w3c-ccg.github.io/vc-di-bbs/contexts/v1",
         {
             "schema": "http://schema.org/",
             "name": "schema:name",
@@ -56,7 +56,7 @@ DOC_TEMPLATE_BBS = {
 DOC_FRAME_BBS = {
     "@context": [
         "https://w3id.org/security/v2",
-        "https://w3id.org/security/bbs/v1",
+        "https://w3c-ccg.github.io/vc-di-bbs/contexts/v1",
         {
             "schema": "http://schema.org/",
             "name": "schema:name",
@@ -71,7 +71,7 @@ DOC_FRAME_BBS = {
 DOC_SIGNED_BBS = {
     "@context": [
         "https://w3id.org/security/v2",
-        "https://w3id.org/security/bbs/v1",
+        "https://w3c-ccg.github.io/vc-di-bbs/contexts/v1",
         {
             "schema": "http://schema.org/",
             "name": "schema:name",
@@ -94,7 +94,7 @@ DOC_SIGNED_BBS = {
 DOC_DERIVED_BBS = {
     "@context": [
         "https://w3id.org/security/v2",
-        "https://w3id.org/security/bbs/v1",
+        "https://w3c-ccg.github.io/vc-di-bbs/contexts/v1",
         {
             "schema": "http://schema.org/",
             "name": "schema:name",

@@ -225,7 +225,7 @@ class TestLinkedDataVerifiableCredential(TestCase):
         )
 
         assert unsigned_presentation == PRESENTATION_UNSIGNED
-        unsigned_presentation["@context"].append("https://w3id.org/security/bbs/v1")
+        unsigned_presentation["@context"].append("https://w3c-ccg.github.io/vc-di-bbs/contexts/v1")
         presentation = await sign_presentation(
             presentation=unsigned_presentation,
             suite=suite,
