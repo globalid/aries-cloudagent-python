@@ -16,13 +16,17 @@ from .error import LinkedDataProofException
 
 import nest_asyncio
 
+import logging
+LOGGER = logging.getLogger(__name__)
+
 nest_asyncio.apply()
 
+DEF_TTL_SECONDS = 14 * 24 * 60 * 60
 
 class DocumentLoader:
     """JSON-LD document loader."""
 
-    def __init__(self, profile: Profile, cache_ttl: int = 300) -> None:
+    def __init__(self, profile: Profile, cache_ttl: int = DEF_TTL_SECONDS) -> None:
         """Initialize new DocumentLoader instance.
 
         Args:
@@ -33,7 +37,9 @@ class DocumentLoader:
         self.profile = profile
         self.resolver = profile.inject(DIDResolver)
         self.cache = profile.inject_or(BaseCache)
-        self.requests_loader = requests.requests_document_loader()
+        self.requests_loader = requests.requests_document_loader(
+            timeout=5
+        )
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         self.cache_ttl = cache_ttl
         self._event_loop = asyncio.get_event_loop()
@@ -43,6 +49,9 @@ class DocumentLoader:
         # DIDUrl throws error if it contains no path, query etc...
         # This makes sure we get a plain did
         did = DIDUrl.parse(did).did if DIDUrl.is_valid(did) else did
+
+
+        LOGGER.warning(f"WARNDEBUG LOADING DID: {did}")
 
         did_document = await self.resolver.resolve(self.profile, did)
 
@@ -68,7 +77,9 @@ class DocumentLoader:
         if url.startswith("did:"):
             document = await self._load_did_document(url, options)
         elif url.startswith("http://") or url.startswith("https://"):
+            LOGGER.warning(f"WARNDEBUG >> LOADING {url} ...")
             document = self._load_http_document(url, options)
+            LOGGER.warning(f"WARNDEBUG >> * LOADED")
         else:
             raise LinkedDataProofException(
                 "Unrecognized url format. Must start with "
@@ -87,11 +98,19 @@ class DocumentLoader:
         """
         cache_key = f"json_ld_document_resolver::{url}"
 
+        LOGGER.warning(f"WARNDEBUG RESOLVE URL: {url}")
+
         # Try to get from cache
         if self.cache:
+            LOGGER.warning(f"WARNDEBUG >> CACHE SET, CHECKING IF CACHED {self.cache}")
             document = await self.cache.get(cache_key)
             if document:
+                LOGGER.warning(f"WARNDEBUG >>> CACHE HIT")
                 return document
+        else:
+            LOGGER.warning(f"WARNDEBUG >> !! CACHE NOT SET")
+
+        LOGGER.warning(f"WARNDEBUG >> !! CACHE NOT HIT")
 
         document = await self._load_async(url, options)
 
