@@ -21,11 +21,12 @@ LOGGER = logging.getLogger(__name__)
 
 nest_asyncio.apply()
 
+DEF_TTL_SECONDS = 14 * 24 * 60 * 60
 
 class DocumentLoader:
     """JSON-LD document loader."""
 
-    def __init__(self, profile: Profile, cache_ttl: int = 300) -> None:
+    def __init__(self, profile: Profile, cache_ttl: int = DEF_TTL_SECONDS) -> None:
         """Initialize new DocumentLoader instance.
 
         Args:
@@ -101,7 +102,7 @@ class DocumentLoader:
 
         # Try to get from cache
         if self.cache:
-            LOGGER.warning(f"WARNDEBUG >> CACHE SET, CHECKING IF CACHED..")
+            LOGGER.warning(f"WARNDEBUG >> CACHE SET, CHECKING IF CACHED {self.cache}")
             document = await self.cache.get(cache_key)
             if document:
                 LOGGER.warning(f"WARNDEBUG >>> CACHE HIT")
