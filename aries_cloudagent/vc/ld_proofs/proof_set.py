@@ -181,13 +181,31 @@ class ProofSet:
         input.pop("proof", None)
 
         # Derive proof, remove context
-        derived_proof = await suite.derive_proof(
-            proof=proof_set[0],
-            document=input,
-            reveal_document=reveal_document,
-            document_loader=document_loader,
-            nonce=nonce,
-        )
+        try:
+            derived_proof = await suite.derive_proof(
+                proof=proof_set[0],
+                document=input,
+                reveal_document=reveal_document,
+                document_loader=document_loader,
+                nonce=nonce,
+            )
+
+        except Exception as e:
+            if document_loader.has_next_signature_fix_attempt():
+                document_loader = document_loader.self_signature_fix_factory_or_advance_fix()
+                return await ProofSet.derive(
+                    document=document,
+                    reveal_document=reveal_document,
+                    suite=suite,
+                    document_loader=document_loader,
+                    nonce=nonce,
+                )
+            else:
+                raise e
+
+        # store doc loader instance here so it can be re-used if needed
+        if document_loader.is_in_fix_state():
+            document['_document_loader_used'] = document_loader
 
         if len(proof_set) > 1:
             derived_proof["proof"] = [derived_proof["proof"]]

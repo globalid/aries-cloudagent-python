@@ -474,11 +474,27 @@ class DIFPresFormatHandler(V20PresFormatHandler):
                 challenge = pres_request["options"].get("challenge", str(uuid4()))
             if not challenge:
                 challenge = str(uuid4())
-            pres_ver_result = await verify_presentation(
-                presentation=dif_proof,
-                suites=await self._get_all_suites(wallet=wallet),
-                document_loader=self._profile.inject(DocumentLoader),
-                challenge=challenge,
-            )
+
+            document_loader = self._profile.inject(DocumentLoader)
+            suites = await self._get_all_suites(wallet=wallet)
+
+            def do_verify_presentation():
+                return verify_presentation(
+                    presentation=dif_proof,
+                    suites=suites,
+                    document_loader=document_loader,
+                    challenge=challenge,
+                )
+
+            pres_ver_result = await do_verify_presentation()
+
+            if (
+                pres_ver_result.verified == False and
+                document_loader.has_next_signature_fix_attempt()
+            ):
+                document_loader = document_loader.self_signature_fix_factory_or_advance_fix()
+                pres_ver_result = await do_verify_presentation()
+
+
             pres_ex_record.verified = json.dumps(pres_ver_result.verified)
             return pres_ex_record
