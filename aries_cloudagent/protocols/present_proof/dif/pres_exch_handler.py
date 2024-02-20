@@ -421,7 +421,12 @@ class DIFPresExchHandler:
                         suite=derive_suite,
                         document_loader=document_loader,
                     )
-                    credential = self.create_vcrecord(signed_new_credential_dict)
+
+                    if credential_dict.get('_document_loader_used') != None:
+                        LOGGER.info("reusing document_loader used during credential deriving")
+                        document_loader = credential_dict.get('_document_loader_used')
+
+                    credential = self.create_vcrecord(signed_new_credential_dict, document_loader)
             result.append(credential)
         return result
 
@@ -451,7 +456,7 @@ class DIFPresExchHandler:
             except (WalletError, WalletNotFoundError):
                 return False
 
-    def create_vcrecord(self, cred_dict: dict) -> VCRecord:
+    def create_vcrecord(self, cred_dict: dict, document_loader = None) -> VCRecord:
         """Return VCRecord from a credential dict."""
         proofs = cred_dict.get("proof") or []
         proof_types = None
@@ -494,7 +499,8 @@ class DIFPresExchHandler:
         if type(schemas) is dict:
             schemas = [schemas]
         schema_ids = [schema.get("id") for schema in schemas]
-        document_loader = self.profile.inject(DocumentLoader)
+        if document_loader == None:
+            document_loader = self.profile.inject(DocumentLoader)
         expanded = jsonld.expand(cred_dict, options={"documentLoader": document_loader})
         types = JsonLdProcessor.get_values(
             expanded[0],
@@ -1406,17 +1412,29 @@ class DIFPresExchHandler:
                         f"Constraint specified for {desc_map_item_id} does not "
                         f"apply to the enclosed credential in {desc_map_item_path}"
                     )
-                if (
-                    not len(
-                        await self.filter_schema(
-                            credentials=[
-                                self.create_vcrecord(cred_dict=match_item.value)
-                            ],
-                            schemas=schema_filter,
-                        )
+
+                def get_vc_record():
+                    return self.filter_schema(
+                        credentials=[
+                            self.create_vcrecord(
+                                cred_dict=match_item.value,
+                                document_loader=document_loader
+                            )
+                        ],
+                        schemas=schema_filter,
                     )
-                    == 1
+
+                document_loader = self.profile.inject(DocumentLoader)
+                vc_record = await get_vc_record()
+
+                while(
+                    not len(vc_record) == 1 and
+                    document_loader.has_next_signature_fix_attempt()
                 ):
+                    document_loader = document_loader.self_signature_fix_factory_or_advance_fix()
+                    vc_record = await get_vc_record()
+
+                if (not len(vc_record) == 1):
                     raise DIFPresExchError(
                         f"Schema filtering specified in {desc_map_item_id} does not "
                         f"match with the enclosed credential in {desc_map_item_path}"

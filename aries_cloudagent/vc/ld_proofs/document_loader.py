@@ -18,11 +18,15 @@ import nest_asyncio
 
 nest_asyncio.apply()
 
-
 class DocumentLoader:
     """JSON-LD document loader."""
 
-    def __init__(self, profile: Profile, cache_ttl: int = 300) -> None:
+    def __init__(
+            self,
+            profile: Profile,
+            cache_ttl: int = 300,
+            signature_fix: int = 0,
+        ) -> None:
         """Initialize new DocumentLoader instance.
 
         Args:
@@ -37,6 +41,18 @@ class DocumentLoader:
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         self.cache_ttl = cache_ttl
         self._event_loop = asyncio.get_event_loop()
+        self.signature_fix = signature_fix
+
+    def self_signature_fix_factory_or_advance_fix(self):
+        if self.signature_fix == 0:
+            return self.__class__(
+                profile = self.profile,
+                cache_ttl = self.cache_ttl,
+                signature_fix = 1,
+            )
+        else:
+            self.next_signature_fix_attempt()
+        return self
 
     async def _load_did_document(self, did: str, options: dict):
         # Resolver expects plain did without path, query, etc...
@@ -91,7 +107,7 @@ class DocumentLoader:
         if self.cache:
             document = await self.cache.get(cache_key)
             if document:
-                return document
+                return self.apply_signature_fix(document, url)
 
         document = await self._load_async(url, options)
 
@@ -99,6 +115,18 @@ class DocumentLoader:
         if self.cache:
             await self.cache.set(cache_key, document, self.cache_ttl)
 
+        return self.apply_signature_fix(document, url)
+
+    def next_signature_fix_attempt(self):
+        self.signature_fix += 1
+
+    def has_next_signature_fix_attempt(self):
+        return False
+
+    def is_in_fix_state(self):
+        return self.signature_fix != 0
+
+    def apply_signature_fix(self, document: dict, url: str):
         return document
 
     def __call__(self, url: str, options: dict):
@@ -109,6 +137,8 @@ class DocumentLoader:
         document = loop.run_until_complete(coroutine)
 
         return document
+
+
 
 
 DocumentLoaderMethod = Callable[[str, dict], dict]
