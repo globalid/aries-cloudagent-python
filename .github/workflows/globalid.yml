@@ -18,33 +18,46 @@ jobs:
     runs-on: ubuntu-20.04
     env:
       ECR_REGISTRY: 715299534867.dkr.ecr.us-east-1.amazonaws.com
+      AWS_ACCOUNT_ID: "209297375176"
+      AWS_IAM_ROLE: "arn:aws:iam::209297375176:role/DevOps"
+      AWS_REGION: "eu-central-1"
+ 
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
       - name: Metadata
         id: meta
-        uses: docker/metadata-action@v3
+        uses: docker/metadata-action@v5
         with:
-          images: ${{ env.ECR_REGISTRY }}/base/aries-cloudagent
+          images: "${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/base/aries-cloudagent"
           tags: |
             type=schedule
             type=ref,event=branch
             type=ref,event=tag
             type=ref,event=pr
             type=sha,format=long,prefix=
-      - name: Login to AWS ECR
-        uses: docker/login-action@v1
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          registry: ${{ env.ECR_REGISTRY }}
-          username: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          password: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: "${{ env.AWS_REGION }}"
+          aws-access-key-id: "${{ secrets.AWS_ACCESS_KEY_ID }}"
+          aws-secret-access-key: "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+          role-to-assume: "${{ env.AWS_IAM_ROLE }}"
+          role-session-name: "GithubAction-docker-image"
+
+      - name: Login to AWS ECR
+        id: ecr_login
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build and push
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v5
         with:
           file: docker/Dockerfile.globalid
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
+          #push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
