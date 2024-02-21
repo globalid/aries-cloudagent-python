@@ -488,7 +488,7 @@ class DIFPresFormatHandler(V20PresFormatHandler):
 
             pres_ver_result = await do_verify_presentation()
 
-            if (
+            while (
                 pres_ver_result.verified == False and
                 document_loader.has_next_signature_fix_attempt()
             ):
